@@ -1,0 +1,111 @@
+version: 2
+
+params:
+  bridge:
+    type: bridge
+    label: Chat bridge
+    description: Discord or Mattermost bridge for the shared Life Pilot room.
+    default: ["My Discord", "Mattermost"]
+    required: true
+  machine:
+    type: machine
+    label: Agent machine
+    description: Online machine where the three agents run.
+    default: ["Sumit"]
+    required: true
+  provider:
+    type: provider
+    label: Agent provider
+    description: Local agent provider used for each Life Pilot agent.
+    default: ["codex"]
+    required: true
+  directory:
+    type: directory
+    label: Agent directory
+    description: Shared project directory visible to the agents.
+    default: "C:\\Users\\Lenovo\\Desktop\\hackathon\\lifepilot"
+    required: true
+  user:
+    type: user
+    label: Life Pilot user
+    description: Chat username to invite to the room.
+    default: "sushil9151"
+    required: true
+
+resources:
+  capture_agent:
+    type: agent
+    name: capture-agent
+    display_name: Life Pilot Capture
+    description: Extracts actionable items from natural language and media.
+    provider: "{provider}"
+    machine: "{machine}"
+    directory: "{directory}"
+    addressing: anyone
+    allow_existing: true
+    instructions: |
+      You are the Capture agent for Life Pilot. Read short user messages,
+      links, photos, videos, voice-note transcripts, and equations. Extract a
+      task title, deadline, category, priority, estimated effort, and notes.
+      Categories are study, personal, bill, health, household, and work.
+      Always show the exact extracted fields and ask for confirmation before
+      saving. Never claim a task was saved without an explicit yes. Keep chat
+      replies short and state the exact action taken or the pending action.
+  planner_agent:
+    type: agent
+    name: planner-agent
+    display_name: Life Pilot Planner
+    description: Builds approved daily and study plans.
+    provider: "{provider}"
+    machine: "{machine}"
+    directory: "{directory}"
+    addressing: anyone
+    allow_existing: true
+    instructions: |
+      You are the Planner agent for Life Pilot. Rank tasks by deadline,
+      priority, and estimated effort. Create a daily plan with at most three
+      top priorities, flag conflicting deadlines, and create a study plan
+      when the user supplies an exam date and available study time. Show the
+      proposed plan first and ask for approval before saving or changing it.
+      Keep replies short, explicit, and honest about what is only proposed.
+  reminder_agent:
+    type: agent
+    name: reminder-agent
+    display_name: Life Pilot Reminder
+    description: Delivers approved briefings and reminders.
+    provider: "{provider}"
+    machine: "{machine}"
+    directory: "{directory}"
+    addressing: anyone
+    allow_existing: true
+    instructions: |
+      You are the Reminder agent for Life Pilot. Send a morning briefing at
+      the user's preferred time, reminders before bill due dates, and an
+      evening review of completed, postponed, and tomorrow's top three tasks.
+      Ask before rescheduling or deleting anything. Do not send unapproved
+      task changes. Keep every message short and identify the exact action
+      sent, scheduled, proposed, or awaiting approval.
+  lifepilot_room:
+    type: room
+    name: Life Pilot
+    description: Shared personal life operating system chat for the user and three agents.
+    bridge: "{bridge}"
+    channel_type: channel_public
+    agents: [capture_agent, planner_agent, reminder_agent]
+    users: ["{user}"]
+    aliases:
+      capture_agent: capture
+      planner_agent: planner
+      reminder_agent: reminder
+    instructions: |
+      Keep all agent responses concise and transparent. Every state-changing
+      action requires user approval first. The room is the shared source of
+      truth; agents coordinate through the local Life Pilot backend and never
+      invent completed actions.
+    kickoff: >-
+      Welcome to Life Pilot. Capture, Planner, and Reminder are ready. You can
+      say add a task, plan my day, track a bill, or wrap up my day. Capture
+      will show what it understood and ask before saving; Planner will propose
+      plans and ask before changes; Reminder will send only approved briefings
+      and reminders. The three agents should introduce themselves in one short
+      sentence each.
