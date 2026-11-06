@@ -1,34 +1,177 @@
-"""Deterministic planning helpers with explicit approval gates."""
+"""Planner Agent.
+
+Role: prioritise tasks, detect conflicting deadlines, build a daily plan of at
+most three priorities, build study plans, and suggest what to postpone.
+
+Contract: it always shows the proposed plan first and asks for approval. It
+never saves a plan or changes a task on its own.
+"""
+
 from __future__ import annotations
-from datetime import date, datetime
 
-_PRIORITY = {"high": 0, "medium": 1, "low": 2}
+from ..models import Proposal
+from ..services import planner_service, task_service
 
-def _deadline_key(task: dict) -> datetime:
-    value = task.get("deadline") or task.get("due_date")
-    if not value: return datetime.max
-    try: return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError: return datetime.max
+NAME = "Planner"
+MAX_PRIORITIES = 3
 
-def rank_tasks(tasks: list[dict]) -> list[dict]:
-    return sorted(tasks, key=lambda t: (_deadline_key(t), _PRIORITY.get(str(t.get("priority", "low")).lower(), 2), t.get("estimated_effort", 999)))
 
-def detect_conflicts(tasks: list[dict]) -> list[dict]:
-    grouped = {}
-    for task in tasks:
-        key = str(task.get("deadline") or task.get("due_date") or "").strip()
-        if key: grouped.setdefault(key, []).append(task)
-    return [{"deadline": key, "tasks": items} for key, items in grouped.items() if len(items) > 1]
+def propose_day() -> Proposal:
+    """Build a daily plan proposal from the current open tasks."""
+    plan = planner_service.build({})
+    top = plan["top_priorities"]
+    conflicts = plan["conflicts"]
+    suggested = plan["suggested_postponements"]
 
-def create_daily_plan(tasks: list[dict], approved: bool = False) -> dict:
-    ranked = rank_tasks(tasks)
-    result = {"top_priorities": ranked[:3], "conflicts": detect_conflicts(tasks), "requires_confirmation": not approved, "saved": bool(approved)}
-    result["response"] = "Action: daily plan approved and saved." if approved else "Proposed a daily plan with up to three priorities. Reply ‘confirm’ to save it."
-    return result
+    if not top:
+        return Proposal(
+            kind="plan",
+            summary="no open tasks — nothing to plan yet",
+            payload=plan,
+            requires_confirmation=False,
+        )
 
-def create_study_plan(exam_date: str, available_hours: float, subject: str = "study", approved: bool = False) -> dict:
-    exam = date.fromisoformat(exam_date)
-    days = max((exam - date.today()).days, 1)
-    result = {"subject": subject, "exam_date": exam_date, "days": days, "daily_hours": round(float(available_hours) / days, 2), "requires_confirmation": not approved, "saved": bool(approved)}
-    result["response"] = "Action: study plan approved and saved." if approved else f"Proposed a study plan for {subject}. Reply ‘confirm’ to save it."
-    return result
+    lines = ["Planner — here is my proposed plan for today (max 3 priorities):"]
+    lines.extend(
+        f"  {i}. {t['title']} — priority {t['priority']}, due {t['deadline'] or 'no date'}, "
+        f"~{t['estimated_minutes']} min"
+        for i, t in enumerate(top, 1)
+    )
+    lines.append(f"Total focus time: {plan['focus_minutes']} minutes.")
+
+    if conflicts:
+        lines.append("Deadline conflicts I found:")
+        lines.extend(
+            f"  ! {c['deadline']}: {c['count']} tasks ({', '.join(c['tasks'])})"
+            for c in conflicts
+        )
+        if suggested:
+            lines.append("Suggested to postpone:")
+            lines.extend(f"  - {t['title']} (priority {t['priority']})" for t in suggested)
+
+    lines.append("Save this plan? Reply 'yes' to save or 'no' to keep it as a draft.")
+
+    return Proposal(
+        kind="plan",
+        summary=f"{len(top)} priorities, {plan['focus_minutes']} min, {len(conflicts)} conflict(s)",
+        payload=plan,
+        requires_confirmation=True,
+    )
+
+
+def respond(proposal: Proposal) -> str:
+    """Render the proposal as a short chat message built from its payload."""
+    plan = proposal.payload
+    top = plan.get("top_priorities") or []
+    if not top:
+        return "Planner — no open tasks yet. Say 'add a task …' and I'll plan around it."
+
+    lines = ["Planner — proposed plan for today:"]
+    lines.extend(
+        f"  {i}. {t['title']} — priority {t['priority']}, due {t['deadline'] or 'no date'}"
+        for i, t in enumerate(top, 1)
+    )
+    lines.append(f"Focus time: {plan.get('focus_minutes', 0)} min.")
+
+    if plan.get("conflicts"):
+        lines.append("Conflicts:")
+        lines.extend(
+            f"  ! {c['deadline']}: {c['count']} tasks" for c in plan["conflicts"]
+        )
+        for t in plan.get("suggested_postponements") or []:
+            lines.append(f"  Suggested to postpone: {t['title']}")
+
+    lines.append("Nothing saved yet. Reply 'yes' to save this plan or 'no' to discard.")
+    return "\n".join(lines)
+
+
+def propose_study_plan(exam_date: str, study_hours: float, subject: str | None = None) -> Proposal:
+    """Propose a study plan split across the days before an exam."""
+    plan = planner_service.study_plan(exam_date, study_hours, subject)
+    if plan.get("error"):
+        return Proposal(kind="study_plan", summary=plan["error"], payload=plan,
+                        requires_confirmation=False)
+
+    summary = (
+        f"{plan['days_left']} days left for {plan['subject']}; "
+        f"{plan['hours_per_day']} h/day from {plan['total_hours']} h total"
+    )
+    return Proposal(kind="study_plan", summary=summary, payload=plan, requires_confirmation=True)
+
+
+def respond_study(proposal: Proposal) -> str:
+    plan = proposal.payload
+    if plan.get("error"):
+        return f"Planner — {plan['error']}"
+    return (
+        f"Planner — study plan for {plan['subject']}:\n"
+        f"  Exam: {plan['exam_date']} ({plan['days_left']} days left)\n"
+        f"  Total time: {plan['total_hours']} h → {plan['hours_per_day']} h/day\n"
+        f"  {plan['advice']}\n"
+        "Nothing saved yet. Reply 'yes' to save this plan or 'no' to discard."
+    )
+
+
+def save(proposal: Proposal, approved: bool = True) -> dict:
+    """Persist the plan only on approval."""
+    if not approved:
+        return {"agent": NAME, "saved": None, "reply": "Plan discarded. Nothing was saved."}
+
+    if proposal.kind == "study_plan":
+        result = planner_service.save(proposal.payload, approved=True)
+        return {
+            "agent": NAME,
+            "saved": result,
+            "reply": f"Saved study plan #{result['plan_id']} for {proposal.payload.get('subject', 'your subject')}.",
+        }
+
+    result = planner_service.save({}, approved=True)
+    return {"agent": NAME, "saved": result, "reply": f"Saved today's plan #{result['plan_id']}."}
+
+
+def handle(message: str, context: str = "day") -> dict:
+    """One-turn handler: propose a plan (or a study plan) without saving."""
+    if "exam" in message.lower() and context == "study":
+        proposal = propose_study_plan(
+            exam_date=_extract_date(message) or "2099-01-01",
+            study_hours=_extract_hours(message) or 10,
+        )
+        return {
+            "agent": NAME,
+            "requires_confirmation": proposal.requires_confirmation,
+            "pending": proposal,
+            "reply": respond_study(proposal),
+        }
+
+    proposal = propose_day()
+    return {
+        "agent": NAME,
+        "requires_confirmation": proposal.requires_confirmation,
+        "pending": proposal,
+        "reply": respond(proposal),
+    }
+
+
+def suggest_postponements(limit: int = 2) -> list[dict]:
+    """Expose the service helper so the chat layer can show the suggestion."""
+    return task_service.suggest_postponements(limit)
+
+
+# ---------------------------------------------------------------------------
+# Small extraction helpers used by the study-plan branch
+# ---------------------------------------------------------------------------
+
+import re
+
+_DATE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+_HOURS = re.compile(r"(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b", re.I)
+
+
+def _extract_date(message: str) -> str | None:
+    match = _DATE.search(message)
+    return match.group(1) if match else None
+
+
+def _extract_hours(message: str) -> float | None:
+    match = _HOURS.search(message)
+    return float(match.group(1)) if match else None

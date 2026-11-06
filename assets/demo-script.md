@@ -1,31 +1,57 @@
-# Life Pilot demo script
+# LifePilot — demo script
 
-## Local setup
+Two ways to demo. Both take under two minutes.
 
-```powershell
-cd lifepilot
-python -m venv .venv
-.venv\\Scripts\\Activate.ps1
+## Option A — no chat app needed (recommended for judges on a laptop)
+
+```bash
 pip install -r requirements.txt
-uvicorn backend.main:app --reload
+python -m backend.main --demo
 ```
 
-In another terminal, run `python -m backend.main --demo` to exercise a local
-demo without a frontend. The Switch room is the chat UI.
+Narrate as it prints:
 
-## Walkthrough
+1. **Capture** proposes a task and explicitly says nothing was saved.
+2. The user says yes — only then does the task appear, with an ID.
+3. **Planner** proposes a daily plan capped at three priorities, reports two
+   clashing deadlines, and suggests what to postpone. Nothing saved yet.
+4. The user says yes — the plan gets an ID.
+5. **Planner** builds a study plan from an exam date: 10 days left, 20 hours →
+   2 hours per day, plus one honest line of advice.
+6. **Reminder** posts bill due dates and changes nothing.
+7. **Reminder** posts the morning briefing and the evening review.
+8. **Reminder** asks before postponing anything.
 
-1. Open the shared Switch room and show the kickoff message.
-2. Say: `add a task - submit the lab report by Friday, high priority`.
-3. Point out Capture's extracted title, deadline, category, priority, and the
-   explicit confirmation question. Reply `yes` and show the saved task.
-4. Say: `plan my day`. Show the Planner's maximum-three proposal and approve it.
-5. Say: `track a bill - internet, 1200, due on the 15th monthly`. Approve the
-   bill and show the scheduled reminder.
-6. Upload a photo of a handwritten deadline. Show OCR extraction and the same
-   confirmation gate before saving.
-7. Say: `wrap up my day` and show completed tasks, postponed tasks, and
-   tomorrow's top three priorities.
+The line to land: *"Every single step asked first. That is the whole product."*
 
-The demo is fully local: FastAPI, SQLite, and optional local OCR. No paid
-external API is required, and no frontend build is needed.
+## Option B — inside the Switch room
+
+1. Open `#lifepilot`. Show the kickoff message with the three agents present.
+2. Say: `add a task — submit the lab report by Friday, high priority`
+   - Point at Capture's field-by-field reading and the confirmation question.
+3. Reply `yes`. Show the saved task ID.
+4. Say: `plan my day`
+   - Show the three-priority cap, the conflict warning, and the postponement suggestion.
+5. Reply `yes`.
+6. Say: `study plan — biology exam on <a date 10 days out>, 20 hours available`
+   - Show days left and hours per day.
+7. Say: `track a bill — internet, 1200, due on the 15th, monthly`, approve it.
+8. Say: `morning briefing` — show top three, bills due, mock weather.
+9. Say: `wrap up my day` — show completed, postponed, tomorrow's top three.
+10. Say: `postpone 1 to tomorrow` — and point out it *asks before moving anything*.
+
+## Beats worth saying out loud
+
+- "There is no app to install. The chat room is the app."
+- "Three agents, three jobs — not one bot pretending to be three."
+- "It runs with no paid API. Mock weather, local OCR, rule-based parsing."
+- "Nothing is saved until I say yes. That's enforced in the code, not just the prompt."
+
+## Screenshot checklist
+
+- [ ] Kickoff message with all three agents
+- [ ] Capture's proposal with "Nothing is saved yet"
+- [ ] The same task after `yes`, showing the saved ID
+- [ ] Planner's three-priority plan with a conflict warning
+- [ ] `python -m backend.main --demo` output
+- [ ] `pytest -q` showing 40 passed
