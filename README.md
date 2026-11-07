@@ -2,7 +2,7 @@
 
 **A local-first personal life operating system that proposes, asks, and only then saves.**
 
-You write in plain language. LifePilot turns that into a task, bill, daily plan, or reminder — shows exactly what it understood — and waits for your **yes** before changing anything.
+You write in plain language. LifePilot turns that into a task, bill, daily plan, or reminder, shows exactly what it understood, and waits for your **yes** before changing anything.
 
 Built for the **Flip the Switch** hackathon: one room, three focused agents, one human veto.
 
@@ -58,7 +58,7 @@ Built for the **Flip the Switch** hackathon: one room, three focused agents, one
 
 ## Why this is not a normal todo app
 
-**Short answer:** a normal todo app is a list you maintain. LifePilot is an approval-first agent system that turns a sentence into a small, ranked plan — and refuses to store anything until you say yes.
+**Short answer:** a normal todo app is a list you maintain. LifePilot is an approval-first agent system that turns a sentence into a small, ranked plan and refuses to store anything until you say yes.
 
 | Normal todo app | LifePilot |
 |---|---|
@@ -127,7 +127,7 @@ The important distinction is not “chat instead of clicks”. It is **propose, 
 **Project quality**
 - Layered architecture: routes validate and delegate; business rules live in `services/` and `agents/`.
 - 133 automated tests using a temporary database and a frozen clock.
-- Single-user by design — no auth, no multi-tenant hosting, no Docker requirement.
+- Single-user by design: no auth, no multi-tenant hosting, no Docker requirement.
 
 ---
 
@@ -139,7 +139,7 @@ Most productivity tools solve that by taking over: they sync to a cloud, ask for
 
 > **Propose, never presume.**
 
-It keeps everything on your machine, shows you the fields it inferred, and refuses to write a record until you say yes. A proposal is a `Proposal` object in memory — not a database row. It has no ID because it has not happened yet.
+It keeps everything on your machine, shows you the fields it inferred, and refuses to write a record until you say yes. A proposal is a `Proposal` object in memory, not a database row. It has no ID because it has not happened yet.
 
 ### Two front doors, one backend
 
@@ -239,8 +239,8 @@ A prompt can be talked around; an approval flag in the code cannot. General ques
 
 ```text
 You:     add a task to submit lab report by Friday, high priority
-Capture: Capture — I understood "Submit lab report" — study, priority 2,
-         due <resolved date>, about 45 min.
+Capture: I understood "Submit lab report" (study, priority 2,
+         due <resolved date>, about 45 min).
          Nothing is saved yet. Reply 'yes' to save it or 'no' to discard.
 
 You:     yes
@@ -252,7 +252,7 @@ If you answer `no`, the proposal is discarded. If you say something unrelated wh
 ### Try it over HTTP
 
 ```bash
-# 1. Create a pending proposal — nothing is written.
+# 1. Create a pending proposal. Nothing is written.
 curl -X POST http://localhost:8000/chat \
   -H 'Content-Type: application/json' \
   -d '{"message":"add a task to submit lab report by Friday","sender":"demo-1"}'
@@ -299,7 +299,7 @@ If you received a ZIP instead, unzip it and `cd` into the folder that directly c
 python -m venv .venv
 .venv\Scripts\activate
 
-# macOS / Linux — use python3 if python points to an older version
+# macOS / Linux: use python3 if python points to an older version
 python3 -m venv .venv
 source .venv/bin/activate
 ```
@@ -417,7 +417,7 @@ Because all rules live in the backend, the room, dashboard, CLI, and API cannot 
    | `wake_up_time` / `reminder_time` | Optional briefing times, 24-hour `HH:MM` |
 
 5. Create the room and **review the generated permissions** before sending real data.
-6. In the room, try: `add a task — finish biology notes by Friday`, then reply `yes`.
+6. In the room, try: `add a task: finish biology notes by Friday`, then reply `yes`.
 
 The agents call `POST /chat` with a stable `sender` value. That sender is how the backend keeps each conversation’s pending proposal separate.
 
@@ -459,7 +459,7 @@ Without a provider, keyword rules are used and the app works fully offline. `GET
 | `LIFEPILOT_SLACK_WEBHOOK` | blank | Optional Slack delivery |
 | `LIFEPILOT_SWITCH_WEBHOOK` | blank | Optional Switch webhook delivery |
 
-Every reminder is always written to `backend/data/outbox.log`. A webhook adds an external destination; it never replaces the local record. The scheduler reads tasks and bills and writes only its own delivery ledger — it never edits a task.
+Every reminder is always written to `backend/data/outbox.log`. A webhook adds an external destination; it never replaces the local record. The scheduler reads tasks and bills and writes only its own delivery ledger. It never edits a task.
 
 ### Storage, timezone, and OCR
 
@@ -503,8 +503,8 @@ Open **<http://localhost:8000/docs>** for request schemas, response models, and 
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/tasks/explain` | Parse text and return per-field reasoning — never saves |
-| `POST` | `/tasks/propose` | Capture proposal — never saves |
+| `POST` | `/tasks/explain` | Parse text and return per-field reasoning; never saves |
+| `POST` | `/tasks/propose` | Capture proposal; never saves |
 | `POST` | `/tasks` | Create a task; requires `approved: true` |
 | `GET` | `/tasks?status=` | List tasks, optionally filtered by status |
 | `PATCH` | `/tasks/{id}` | Edit a task |
@@ -695,7 +695,7 @@ These are the practical lessons from the build, kept because they help the next 
 | `ModuleNotFoundError: No module named 'fastapi'` | Virtual environment is not active or packages are missing | Activate `.venv`, then `pip install -r requirements.txt` |
 | `ModuleNotFoundError: No module named 'backend'` | You are one directory above the project | `cd` into the folder containing `backend/` |
 | `Address already in use` on port 8000 | Another process is listening | `uvicorn backend.main:app --reload --port 8001`, then open `localhost:8001` |
-| `POST /tasks` returns `400` | Approval flag missing | Send `"approved": true` — this gate is intentional |
+| `POST /tasks` returns `400` | Approval flag missing | Send `"approved": true`; this gate is intentional |
 | `POST /tasks` returns `422` | No `title` and no `text` | Provide one of them |
 | `no such table` | An old/incompatible database file | Stop the app, delete `backend/data/lifepilot.db`, restart; schema is recreated on boot |
 | Dashboard badge says `RULES` | No model key was found | Optional; check `.env` and `python -m backend.main --check`, then restart |
@@ -745,11 +745,11 @@ Because wrongly saving a fictional task quietly shapes your plan; wrongly asking
 
 ## Further reading
 
-- [SETUP.md](SETUP.md) — beginner installation guide for Windows, macOS, and Linux
-- [assets/demo-script.md](assets/demo-script.md) — two-minute demo narration and screenshot checklist
-- [switch/lifepilot.template.yaml](switch/lifepilot.template.yaml) — the complete room/agent definition
-- [assets/architecture.png](assets/architecture.png), [assets/where-the-switch-is.png](assets/where-the-switch-is.png), and [assets/how-switch-connects.png](assets/how-switch-connects.png) — original hackathon reference diagrams
-- <https://github.com/sandbox-quantum/switch> — Switch, the open-source agent/room layer
+- [SETUP.md](SETUP.md): beginner installation guide for Windows, macOS, and Linux
+- [assets/demo-script.md](assets/demo-script.md): two-minute demo narration and screenshot checklist
+- [switch/lifepilot.template.yaml](switch/lifepilot.template.yaml): the complete room/agent definition
+- [assets/architecture.png](assets/architecture.png), [assets/where-the-switch-is.png](assets/where-the-switch-is.png), and [assets/how-switch-connects.png](assets/how-switch-connects.png): original hackathon reference diagrams
+- <https://github.com/sandbox-quantum/switch>: Switch, the open-source agent/room layer
 
 > The original diagrams are kept for historical context. A few show earlier test counts or the pre-optional-model design; the current behaviour and test count are described in this README.
 
