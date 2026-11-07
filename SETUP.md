@@ -119,7 +119,7 @@ lifepilot/
 ├── .env.example         template for your settings   <-- used in Step 5
 ├── backend/             the application
 ├── switch/              the Switch template
-├── tests/               98 automated tests
+├── tests/               104 automated tests
 └── assets/              diagrams and the demo script
 ```
 
@@ -455,7 +455,7 @@ All of these run from the `lifepilot` folder with `(.venv)` active.
 | `uvicorn backend.main:app --reload` | Start the app. Reminders run on a timer inside it. |
 | `python -m backend.main --demo` | Print the whole workflow in the terminal. No browser needed. |
 | `python -m backend.main --watch --interval 30` | Run the reminder clock as its own process. |
-| `pytest -q` | Run the 98 tests. Should end `98 passed`. |
+| `pytest -q` | Run the 104 tests. Should end `104 passed`. |
 | `deactivate` | Leave the virtual environment. |
 
 Copy this project to another machine and you only repeat Steps 2–6.

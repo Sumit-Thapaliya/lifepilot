@@ -13,7 +13,7 @@ version: 2
 # IMPORTANT — WHERE THE INTELLIGENCE LIVES
 # Each agent below is a *thin shell*. It does not re-derive priorities, parse
 # dates, or invent plans; it calls the LifePilot backend, which is plain Python
-# with 61 tests. This keeps one implementation of every rule instead of two,
+# with 104 tests. This keeps one implementation of every rule instead of two,
 # and it means what the agents say in this room is exactly what the API returns.
 #
 # Before importing this template, run the backend on the agent machine:

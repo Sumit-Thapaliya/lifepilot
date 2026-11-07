@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+  <title id="title">LifePilot approval-first workflow</title>
+  <desc id="desc">A six-step flow from a plain-language message through routing and a proposal, to an explicit yes or no, then local storage only after approval.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111311"/>
+      <stop offset="1" stop-color="#1c211d"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d5b982" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#76a58a" stop-opacity="0.14"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d5b982"/>
+    </marker>
+    <style>
+      .kicker { font: 600 13px Arial, Helvetica, sans-serif; letter-spacing: 2.4px; fill: #76a58a; }
+      .title { font: 700 28px Georgia, 'Times New Roman', serif; fill: #f2f0e8; }
+      .sub { font: 400 15px Arial, Helvetica, sans-serif; fill: #aeb8ae; }
+      .num { font: 700 13px Arial, Helvetica, sans-serif; letter-spacing: 1.5px; fill: #d5b982; }
+      .head { font: 700 19px Arial, Helvetica, sans-serif; fill: #f2f0e8; }
+      .body { font: 400 14px Arial, Helvetica, sans-serif; fill: #aeb8ae; }
+      .note { font: 600 13px Arial, Helvetica, sans-serif; fill: #c88765; }
+      .card { fill: #1c211d; stroke: #303830; stroke-width: 1.5; }
+      .card-accent { fill: url(#hero); stroke: #d5b982; stroke-width: 1.5; }
+      .flow { fill: none; stroke: #d5b982; stroke-width: 2; marker-end: url(#arrow); }
+      .flow-muted { fill: none; stroke: #76a58a; stroke-width: 2; stroke-dasharray: 6 5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="430" rx="20" fill="url(#bg)"/>
+  <text class="kicker" x="44" y="38">APPROVAL-FIRST WORKFLOW</text>
+  <text class="title" x="44" y="72">A proposal is a thing that has not happened.</text>
+  <text class="sub" x="44" y="99">Every write path passes through one visible proposal and one explicit answer.</text>
+
+  <!-- Top row -->
+  <rect class="card" x="40" y="130" width="320" height="100" rx="16"/>
+  <text class="num" x="60" y="154">01 · INPUT</text>
+  <text class="head" x="60" y="181">Plain-language message</text>
+  <text class="body" x="60" y="207">Switch room or the bundled dashboard</text>
+
+  <rect class="card" x="440" y="130" width="320" height="100" rx="16"/>
+  <text class="num" x="460" y="154">02 · ROUTE</text>
+  <text class="head" x="460" y="181">FastAPI + intent router</text>
+  <text class="body" x="460" y="207">Capture · Planner · Reminder</text>
+
+  <rect class="card-accent" x="840" y="130" width="320" height="100" rx="16"/>
+  <text class="num" x="860" y="154">03 · PROPOSE</text>
+  <text class="head" x="860" y="181">Show what was understood</text>
+  <text class="body" x="860" y="207">Explanation + pending proposal · no SQL</text>
+
+  <!-- Bottom row, read right to left -->
+  <rect class="card-accent" x="840" y="290" width="320" height="100" rx="16"/>
+  <text class="num" x="860" y="314">04 · DECIDE</text>
+  <text class="head" x="860" y="341">You answer yes or no</text>
+  <text class="body" x="860" y="367">Silence is never treated as consent</text>
+
+  <rect class="card" x="440" y="290" width="320" height="100" rx="16"/>
+  <text class="num" x="460" y="314">05 · VALIDATE</text>
+  <text class="head" x="460" y="341">Services enforce the rules</text>
+  <text class="body" x="460" y="367">Rank · clamp fields · approve writes</text>
+
+  <rect class="card" x="40" y="290" width="320" height="100" rx="16"/>
+  <text class="num" x="60" y="314">06 · STORE</text>
+  <text class="head" x="60" y="341">Local SQLite + outbox</text>
+  <text class="body" x="60" y="367">Scheduler reads; it never edits tasks</text>
+
+  <!-- Arrows -->
+  <path class="flow" d="M 365 180 H 430"/>
+  <path class="flow" d="M 765 180 H 830"/>
+  <path class="flow" d="M 1000 235 V 280"/>
+  <path class="flow" d="M 835 340 H 770"/>
+  <path class="flow" d="M 435 340 H 370"/>
+  <path class="flow-muted" d="M 1000 392 V 400" style="marker-end:none"/>
+  <rect x="840" y="399" width="320" height="26" rx="13" fill="#2a201b" stroke="#c88765" stroke-width="1"/>
+  <text class="note" x="860" y="417">no → discard, nothing is written</text>
+</svg>
