@@ -4,16 +4,18 @@
   quick-add folded inside the Tasks card, focus snapshot in the sidebar.
 - User :root applied verbatim (#111311). All controls still hit the real API.
 - Embedded Manrope + Fraunces fonts (data URIs), larger type, styled inputs.
+- Dark/Light theme toggler (localStorage persisted, light = sage/cobalt palette).
 """
 
 from __future__ import annotations
 
 PAGE = """<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LifePilot</title>
+<script>try{var t=localStorage.getItem('lp-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root {
@@ -267,6 +269,50 @@ select{appearance:none; background-color:var(--surface); background-image:url("d
 #toast{position:fixed; left:50%; bottom:20px; transform:translate(-50%,12px); background:var(--text); color:var(--bg); padding:11px 16px; border-radius:11px; font-size:14px; font-weight:650; box-shadow:var(--shadow2); opacity:0; pointer-events:none; transition:var(--transition); z-index:50}
 #toast.on{opacity:1; transform:translate(-50%,0)}
 
+/* ---- light theme (sage / cobalt) ---- */
+html[data-theme="light"]{
+  color-scheme:light;
+  --bg:#e9eee5; --bg2:#dfe7dc; --sidebar:#dce5d8;
+  --card:#f0f3eb; --card2:#e3eade; --card-hover:#d8e3d4; --surface:#e8eee4;
+  --border:#cbd6c7; --border2:#b6c6b2;
+  --text:#1c3029; --text2:#43594e; --muted:#718277; --muted2:#94a398;
+  --primary:#315fe8; --primary2:#234bc7; --primary-light:#d9e2ff; --primary-mid:#bdccff;
+  --emerald:#36866a; --emerald2:#78977c; --emerald-light:#d3e9dd;
+  --copper:#e98b52; --copper-light:#f8e0cf;
+  --green:#36866a; --green-light:#d3e9dd;
+  --amber:#c58a35; --amber-light:#f3e6c9;
+  --red:#d56b61; --red-light:#f4dcd7;
+  --blue:#6488ed; --blue-light:#d8e3ff;
+  --gradient-primary:linear-gradient(120deg,#315fe8,#6488f0);
+  --gradient-banner:linear-gradient(120deg,#d6e5d2,#d5e0fa,#e6edc8);
+  --gradient-card:linear-gradient(145deg,#f0f3eb,#e4ebdf);
+  --radius:20px; --radius2:14px; --radius3:10px;
+  --shadow:0 3px 12px rgba(35,55,42,.06),0 8px 24px rgba(35,55,42,.04);
+  --shadow2:0 12px 32px rgba(35,55,42,.10);
+  --glow:0 0 22px rgba(49,95,232,.12);
+  --transition:all .25s ease;
+}
+html[data-theme="light"] body::before{background:
+  radial-gradient(800px 480px at 15% -8%, rgba(49,95,232,.07), transparent 62%),
+  radial-gradient(700px 460px at 88% 2%, rgba(120,151,124,.07), transparent 60%),
+  radial-gradient(700px 520px at 50% 108%, rgba(233,139,82,.06), transparent 62%)}
+html[data-theme="light"] .header{background:rgba(233,238,229,.86)}
+html[data-theme="light"] .sidebar-bottom{background:rgba(220,229,216,.6)}
+html[data-theme="light"] .card-head{background:linear-gradient(180deg, rgba(255,255,255,.5), transparent)}
+html[data-theme="light"] .banner-badge{background:rgba(255,255,255,.65); color:var(--text2)}
+html[data-theme="light"] .btn-primary{box-shadow:0 3px 12px rgba(49,95,232,.18), var(--glow)}
+html[data-theme="light"] .btn-primary:hover{box-shadow:0 8px 20px rgba(49,95,232,.22), var(--glow)}
+html[data-theme="light"] .logo{box-shadow:0 3px 10px rgba(49,95,232,.20), var(--glow)}
+html[data-theme="light"] .bubble.user{box-shadow:0 3px 10px rgba(49,95,232,.18), var(--glow)}
+html[data-theme="light"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23315fe8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+html[data-theme="light"] textarea:focus,html[data-theme="light"] input:focus,html[data-theme="light"] select:focus,
+html[data-theme="light"] .add-box textarea:focus,html[data-theme="light"] .chat-input input:focus{
+  box-shadow:0 0 0 3px rgba(49,95,232,.18), var(--glow), inset 0 0 0 1px rgba(49,95,232,.22)
+}
+html[data-theme="light"] body,html[data-theme="light"] .header,html[data-theme="light"] .sidebar,
+html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="light"] .quickbar{
+  transition:background-color .25s ease,border-color .25s ease,color .25s ease,box-shadow .25s ease
+}
 @media(max-width:920px){
   .sidebar{display:none}
   .mobile-header{display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:var(--sidebar); border-bottom:1px solid var(--border)}
@@ -329,6 +375,7 @@ select{appearance:none; background-color:var(--surface); background-image:url("d
       <div class="header-actions">
         <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">Offline</span></span>
         <button class="btn btn-primary btn-sm" onclick="focusAdd()">＋ New task</button>
+        <button type="button" class="btn btn-ghost btn-sm theme-btn" id="themeBtn" onclick="toggleTheme()" aria-label="Toggle theme" aria-pressed="false" title="Switch to light theme">☀️ Light</button>
         <button class="btn btn-ghost btn-sm" onclick="resetAll()">Reset</button>
       </div>
     </header>
@@ -533,6 +580,21 @@ async function runTick(){try{const d=await api('/reminders/tick?force=true',{met
 async function resetAll(){if(!confirm('Delete all local tasks, bills and reminders?')) return; await api('/reset',{method:'POST'}); toast('Cleared'); loadTasks(); refreshPending(); $('brief').classList.remove('on'); $('pushLog').classList.remove('on')}
 $('chat').innerHTML='<div class="bubble sys">Assistant ready — try “add a task to buy milk”</div>';
 $('todayDate').textContent=new Date().toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric', year:'numeric'});
+function applyTheme(t){
+  document.documentElement.dataset.theme=t;
+  document.querySelectorAll('.theme-btn').forEach(b=>{
+    b.textContent=t==='light'?'🌙 Dark':'☀️ Light';
+    b.title=t==='light'?'Switch to dark theme':'Switch to light theme';
+    b.setAttribute('aria-pressed',t==='light'?'true':'false');
+  });
+}
+function toggleTheme(){
+  const cur=document.documentElement.dataset.theme==='light'?'light':'dark';
+  const next=cur==='light'?'dark':'light';
+  applyTheme(next);
+  try{localStorage.setItem('lp-theme',next)}catch(e){}
+}
+applyTheme(document.documentElement.dataset.theme||'dark');
 checkHealth(); parseSentence(); loadTasks(); refreshPending(); setInterval(checkHealth,15000);
 document.querySelectorAll('.nav-item[href^="#"]').forEach(a=>a.addEventListener('click',e=>{
   const id=a.getAttribute('href').slice(1); const el=document.getElementById(id);
