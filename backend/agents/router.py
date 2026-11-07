@@ -1,16 +1,20 @@
-"""Intent router: decides which of the three agents should answer.
+"""Intent router: decides which agent should answer.
 
-This is deliberately a simple, readable keyword router rather than an LLM call,
-so the project runs with no paid API and behaves identically every time. Each
-agent still owns its own logic and its own approval step.
+This is deliberately a readable keyword/heuristic router rather than an LLM
+call, so the project runs with no paid API and behaves identically every time.
+
+Specific product intents are checked first. General questions, greetings and
+status updates go to the Assistant; only actionable/task-like text goes to
+Capture. Every agent still owns its own logic and approval step.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from ..models import Proposal
-from . import capture_agent, planner_agent, reminder_agent
+from . import capture_agent, general_agent, planner_agent, reminder_agent
 
 # Intent triggers, checked in order. More specific intents come first.
 PLAN_TRIGGERS = ("plan my day", "plan today", "daily plan", "what should i do", "prioritise", "prioritize")
@@ -21,13 +25,81 @@ BILL_TRIGGERS = ("bill reminder", "bills due", "what bills", "due date")
 POSTPONE_TRIGGERS = ("postpone", "push back", "move to tomorrow")
 DELETE_TRIGGERS = ("delete task", "remove task", "cancel task")
 
+QUESTION_STARTERS = (
+    "what", "what's", "who", "who's", "why", "why's", "how", "how's",
+    "when", "when's", "where", "where's", "which", "can you", "could you",
+    "would you", "do you", "does ", "is ", "are ", "am ", "tell me",
+    "explain", "help", "show me", "i have a question", "i wonder",
+    "any idea", "do i", "should i",
+)
+
+STATUS_UPDATE_TRIGGERS = (
+    "still working", "in progress", "almost done", "not yet", "blocked",
+    "halfway", "working on", "finished ", "done with", "completed ",
+    "made progress", "no progress", "on track",
+)
+
+TASK_MARKERS = (
+    "add a task", "new task", "create task", "make a task", "track a bill",
+    "todo", "to-do", "task:", "bill:", "i need to", "i have to", "need to",
+    "have to", "remind me", "remember to", "don't forget", "dont forget",
+    "urgent", "priority", "deadline", "estimated", "due date",
+)
+
+ACTION_VERBS = {
+    "finish", "submit", "pay", "call", "buy", "write", "prepare", "review",
+    "clean", "book", "send", "read", "study", "revise", "practice", "walk",
+    "check", "fix", "complete", "organize", "organise", "pick", "drop",
+    "water", "email", "order", "renew", "register", "apply", "attend",
+    "meet", "cook", "wash", "update", "draft", "print", "file", "visit",
+    "message", "text", "reply", "confirm", "schedule", "plan", "add",
+}
+
+# A direct request can be phrased as a question ("can you add a task to …?")
+# and must still reach Capture rather than the general answer path.
+DIRECT_TASK_RE = re.compile(
+    r"(?:"
+    r"\b(?:add|create|make|log|track|remember)\s+(?:a\s+)?(?:task|bill|reminder)\b"
+    r"(?:\s+(?:to|for|about|:)\s+\S+|\s*[-:—]\s*\S+)"
+    r"|\bremind me to\s+\S+"
+    r"|\bremember to\s+\S+"
+    r"|\bi\s+(?:need|have)\s+to\s+\S+"
+    r"|\bdon'?t forget to\s+\S+"
+    r"|\bput\s+.+?\s+on my\s+(?:list|tasks)\b"
+    r")",
+    re.I,
+)
+
+DEADLINE_RE = re.compile(
+    r"\b(?:by|before|due|on)\s+"
+    r"(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|"
+    r"saturday|sunday|next\s+\w+|\d{4}-\d{2}-\d{2}|\d{1,2}(?:st|nd|rd|th)?)\b",
+    re.I,
+)
+
+
+def _is_general_question(lowered: str) -> bool:
+    return lowered.endswith("?") or any(lowered.startswith(s) for s in QUESTION_STARTERS)
+
+
+def _looks_like_task(lowered: str) -> bool:
+    """True only for actionable text, not for every sentence a user types."""
+    if any(marker in lowered for marker in TASK_MARKERS):
+        return True
+    if DEADLINE_RE.search(lowered):
+        return True
+    words = re.sub(r"^(?:please|kindly|hey|ok|okay)\s+", "", lowered).split()
+    return bool(words and words[0] in ACTION_VERBS)
+
 
 def detect(message: str) -> str:
     """Return one of: planner, planner_study, reminder_morning,
     reminder_evening, reminder_bills, reminder_postpone, reminder_delete,
-    capture."""
+    general, capture."""
     lowered = message.lower().strip()
 
+    if not lowered:
+        return "general"
     if any(trigger in lowered for trigger in STUDY_TRIGGERS) and "exam" in lowered:
         return "planner_study"
     if any(trigger in lowered for trigger in PLAN_TRIGGERS):
@@ -42,7 +114,19 @@ def detect(message: str) -> str:
         return "reminder_delete"
     if any(trigger in lowered for trigger in POSTPONE_TRIGGERS):
         return "reminder_postpone"
-    return "capture"
+
+    # A direct request wins even when phrased as "can you …?".
+    if DIRECT_TASK_RE.search(lowered):
+        return "capture"
+    # Progress replies are conversation, not new tasks.
+    if any(trigger in lowered for trigger in STATUS_UPDATE_TRIGGERS):
+        return "general"
+    # Any other question/greeting gets a real answer, never a task proposal.
+    if _is_general_question(lowered):
+        return "general"
+    if _looks_like_task(lowered):
+        return "capture"
+    return "general"
 
 
 def route(
@@ -103,6 +187,8 @@ def route(
                 "For example: 'postpone 3 to tomorrow'."
             ),
         }
+    if intent == "general":
+        return general_agent.answer(message)
 
     return capture_agent.handle(message)
 

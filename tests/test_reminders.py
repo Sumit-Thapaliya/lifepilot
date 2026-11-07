@@ -1,15 +1,16 @@
 """Tests for push reminders — the scheduler that speaks first.
 
-These cover the four promises the scheduler makes:
+These cover the scheduler's promises:
   1. it actually delivers something (the outbox is a real channel)
-  2. it never sends the same alert twice on the same day
+  2. it never sends the same alert twice in its dedupe window
   3. it never changes a task or a bill
   4. it reports failure honestly instead of claiming success
+  5. periodic progress check-ins are deduplicated and configurable
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -26,6 +27,25 @@ def outbox(tmp_path, monkeypatch):
     for name in deliver_service.CHANNELS.values():
         monkeypatch.delenv(name, raising=False)
     scheduler_service.ensure_table()
+
+    # The demo seed and bill maths are relative to date.today(), but these
+    # tests deliberately tick a fixed clock (2026-11-06). Freeze "today" in
+    # every module that reads it so the suite stays deterministic on any date.
+    class FrozenDate(date):
+        @classmethod
+        def today(cls):
+            return date(2026, 11, 6)
+
+    from backend import seed as seed_mod
+    from backend.services import (
+        bill_service, planner_service, reminder_service,
+        task_service, understanding_service,
+    )
+    for mod in (
+        seed_mod, bill_service, planner_service,
+        reminder_service, task_service, understanding_service,
+    ):
+        monkeypatch.setattr(mod, "date", FrozenDate, raising=False)
     return path
 
 
@@ -194,3 +214,57 @@ def test_total_sent_comes_from_the_ledger(outbox):
     # The ledger is the only source of truth, so it equals the delivered rows.
     rows = scheduler_service.history(limit=100)
     assert scheduler_service.sent_count() == sum(1 for r in rows if r["delivered"] == 1)
+
+
+# ------------------------------------------------------- progress check-ins
+
+def test_progress_check_in_is_periodic_and_deduplicated(outbox, monkeypatch):
+    """One open task is checked per interval bucket, never twice per bucket."""
+    monkeypatch.setenv("LIFEPILOT_PROGRESS_INTERVAL_HOURS", "4")
+    _reset_with_demo_data()
+
+    first = scheduler_service.run_tick(
+        force=False, now=datetime(2026, 11, 6, 8, 0), include_briefings=False
+    )
+    first_progress = [m for m in first["messages"] if m["kind"] == "progress"]
+    assert len(first_progress) == 1
+    assert "Progress check" in first_progress[0]["text"]
+    assert "how is" in first_progress[0]["text"]
+
+    same_bucket = scheduler_service.run_tick(
+        force=False, now=datetime(2026, 11, 6, 9, 0), include_briefings=False
+    )
+    assert not [m for m in same_bucket["messages"] if m["kind"] == "progress"]
+
+    next_bucket = scheduler_service.run_tick(
+        force=False, now=datetime(2026, 11, 6, 12, 0), include_briefings=False
+    )
+    assert len([m for m in next_bucket["messages"] if m["kind"] == "progress"]) == 1
+
+
+def test_progress_check_respects_quiet_hours_when_not_forced(outbox, monkeypatch):
+    monkeypatch.setenv("LIFEPILOT_PROGRESS_INTERVAL_HOURS", "4")
+    _reset_with_demo_data()
+    tick = scheduler_service.run_tick(
+        force=False, now=datetime(2026, 11, 6, 3, 0), include_briefings=False
+    )
+    assert not [m for m in tick["messages"] if m["kind"] == "progress"]
+
+
+def test_progress_check_can_be_disabled(outbox, monkeypatch):
+    monkeypatch.setenv("LIFEPILOT_PROGRESS_INTERVAL_HOURS", "0")
+    _reset_with_demo_data()
+    tick = scheduler_service.run_tick(
+        force=True, now=datetime(2026, 11, 6, 8, 0), include_briefings=False
+    )
+    assert not [m for m in tick["messages"] if m["kind"] == "progress"]
+
+
+def test_progress_preview_still_shows_the_question_after_delivery(outbox, monkeypatch):
+    monkeypatch.setenv("LIFEPILOT_PROGRESS_INTERVAL_HOURS", "4")
+    _reset_with_demo_data()
+    now = datetime(2026, 11, 6, 8, 0)
+    scheduler_service.run_tick(force=False, now=now, include_briefings=False)
+    preview = scheduler_service.progress_preview(now)
+    assert "Progress check" in preview["message"]
+    assert preview["already_sent"] is True

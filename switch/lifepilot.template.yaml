@@ -13,7 +13,7 @@ version: 2
 # IMPORTANT — WHERE THE INTELLIGENCE LIVES
 # Each agent below is a *thin shell*. It does not re-derive priorities, parse
 # dates, or invent plans; it calls the LifePilot backend, which is plain Python
-# with 104 tests. This keeps one implementation of every rule instead of two,
+# with 133 tests. This keeps one implementation of every rule instead of two,
 # and it means what the agents say in this room is exactly what the API returns.
 #
 # Before importing this template, run the backend on the agent machine:
@@ -239,6 +239,10 @@ resources:
         - "plan my day / prioritise / what should I do" → Planner
         - "study plan / exam" → Planner
         - "morning briefing / bills due / wrap up my day / evening review" → Reminder
+        - General questions and progress updates → Assistant, with no task proposal
+
+      Periodic progress check-ins ask how one open task is going. They only
+      read data; they never complete, postpone, or delete a task.
 
     kickoff: >-
       Welcome to LifePilot. This room is your personal life operating system.
@@ -257,5 +261,6 @@ resources:
       priorities. Reminder sends your morning briefing, bill reminders, and
       evening review.
 
-      Nothing is saved, moved, or deleted without your yes. Start by telling me
-      one thing you need to get done.
+      You can also ask general questions about LifePilot; those get a direct
+      answer rather than a task proposal. Nothing is saved, moved, or deleted
+      without your yes. Start by telling me one thing you need to get done.

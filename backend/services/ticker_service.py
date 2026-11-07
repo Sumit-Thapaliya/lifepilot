@@ -5,9 +5,10 @@ Before this module existed, reminders only fired if the user remembered to run
 needs you to remember to start it is not a reminder system.
 
 The ticker starts with the API and, every ``interval`` seconds, asks the
-scheduler whether anything is due. Everything it sends still goes through
-``scheduler_service.run_tick()``, so deduplication and the audit trail are
-unchanged — this is only a heartbeat, not new logic.
+scheduler whether anything is due — including the periodic progress check-in.
+Everything it sends still goes through ``scheduler_service.run_tick()``, so
+deduplication and the audit trail are unchanged — this is only a heartbeat,
+not new logic.
 
 Turn it off with ``LIFEPILOT_TICK=0`` (the tests do this).
 """

@@ -119,7 +119,7 @@ lifepilot/
 ├── .env.example         template for your settings   <-- used in Step 5
 ├── backend/             the application
 ├── switch/              the Switch template
-├── tests/               104 automated tests
+├── tests/               133 automated tests
 └── assets/              diagrams and the demo script
 ```
 
@@ -440,8 +440,12 @@ In the page:
    With a model you should see **WHEN: 20:30** and a one-line reason.
 2. Edit anything that is wrong — every field is editable.
 3. Click **Save this task**. Nothing is stored until you click.
-4. In the **Room** panel type `add a task to feed the dog` and press Enter.
+4. In the **Assistant** panel type `what is LifePilot?` and press Enter.
+   You get a real answer; no task proposal is created.
+5. In the **Assistant** panel type `add a task to feed the dog` and press Enter.
    The agent proposes; reply `yes` to save, `no` to discard.
+6. Press **Progress check** in Quick actions to preview the periodic question
+   for one open task. The automatic scheduler delivers it without spamming.
 
 ---
 
@@ -455,7 +459,7 @@ All of these run from the `lifepilot` folder with `(.venv)` active.
 | `uvicorn backend.main:app --reload` | Start the app. Reminders run on a timer inside it. |
 | `python -m backend.main --demo` | Print the whole workflow in the terminal. No browser needed. |
 | `python -m backend.main --watch --interval 30` | Run the reminder clock as its own process. |
-| `pytest -q` | Run the 104 tests. Should end `104 passed`. |
+| `pytest -q` | Run the 133 tests. Should end `133 passed`. |
 | `deactivate` | Leave the virtual environment. |
 
 Copy this project to another machine and you only repeat Steps 2–6.

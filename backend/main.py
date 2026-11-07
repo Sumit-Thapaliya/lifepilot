@@ -120,6 +120,17 @@ def reminders_history(limit: int = 20) -> list[dict]:
     return scheduler_service.history(limit=limit)
 
 
+@app.post("/reminders/progress")
+def progress_check() -> dict:
+    """Preview the current periodic progress question for an open task.
+
+    Delivery is owned by the automatic scheduler and its dedupe ledger. This
+    read-only route powers the dashboard's Progress check button without
+    re-sending task, bill, briefing, or progress alerts.
+    """
+    return scheduler_service.progress_preview()
+
+
 # ---------------------------------------------------------------------------
 # Chat — the Switch room's entry point
 # ---------------------------------------------------------------------------
@@ -481,6 +492,11 @@ def run_check() -> int:
     writable = db.parent.exists() or db.parent.mkdir(parents=True, exist_ok=True) is None
     line("Database", str(db.name), writable)
     line("Reminder clock", f"every {ticker_service.interval_seconds()}s when the app runs")
+    progress_hours = scheduler_service.progress_interval_hours()
+    line(
+        "Progress check-ins",
+        f"every {progress_hours}h during active hours" if progress_hours else "disabled",
+    )
     line("Task warning window", f"{scheduler_service.task_window_days()} day(s) ahead")
     line("Bill warning window", f"{scheduler_service.bill_window_days()} day(s) ahead")
     line("Reminder delivery", deliver_service.configured_channel() or "outbox.log (no webhook)")

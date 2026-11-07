@@ -239,3 +239,16 @@ def test_chat_pending_can_be_abandoned():
 def test_api_memory_rejects_unknown_keys():
     assert client.put("/memory", json={"key": "wake_up_time", "value": "06:00"}).status_code == 200
     assert client.put("/memory", json={"key": "password", "value": "x"}).status_code == 422
+
+
+def test_api_progress_check_previews_without_delivering(monkeypatch, tmp_path):
+    monkeypatch.setenv("LIFEPILOT_OUTBOX", str(tmp_path / "outbox.log"))
+    task_service.create_task(
+        {"title": "Write report", "deadline": str(date.today())}, approved=True
+    )
+    response = client.post("/reminders/progress")
+    assert response.status_code == 200
+    data = response.json()
+    assert "Progress check" in data["message"]
+    assert data["already_sent"] is False
+    assert not (tmp_path / "outbox.log").exists()

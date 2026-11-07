@@ -6,7 +6,7 @@ You write in plain language. LifePilot turns that into a task, bill, daily plan,
 
 Built for the **Flip the Switch** hackathon: one room, three focused agents, one human veto.
 
-`Local-first` · `No API key required` · `No account` · `104 tests passing` · `MIT`
+`Local-first` · `No API key required` · `No account` · `133 tests passing` · `MIT`
 
 ![LifePilot dark dashboard](assets/screenshots/dashboard-dark.png)
 
@@ -17,6 +17,8 @@ Built for the **Flip the Switch** hackathon: one room, three focused agents, one
 ## Contents
 
 - [At a glance](#at-a-glance)
+- [Why this is not a normal todo app](#why-this-is-not-a-normal-todo-app)
+  - [Feature set](#feature-set)
 - [What is LifePilot?](#what-is-lifepilot)
 - [Dashboard tour](#dashboard-tour)
 - [How it works](#how-it-works)
@@ -45,11 +47,87 @@ Built for the **Flip the Switch** hackathon: one room, three focused agents, one
 | **What is it?** | A single-user FastAPI application with a bundled web dashboard, an optional Switch chat room, a terminal demo, and a documented HTTP API. |
 | **What is the core idea?** | **Propose → explain → ask → store.** Nothing is saved, moved, or deleted without an explicit approval. |
 | **Do I need a key?** | No. Deterministic keyword rules work offline. An optional language model improves natural-language understanding. |
+| **Can I ask general questions?** | Yes. Questions, greetings, and progress updates get real answers; only actionable/task-like text creates a proposal. |
 | **Do I need Switch?** | No. The dashboard, CLI demo, tests, and API work independently. Switch is the conversational front door the project was built for. |
 | **Where is my data?** | One SQLite file: `backend/data/lifepilot.db`. It is gitignored and never committed. |
 | **What does it need?** | Python 3.10+ and `pip install -r requirements.txt`. No Docker, no database server, no signup. |
 | **What is out of scope?** | Authentication, multi-user accounts, cloud sync, and hosted deployment. This is deliberately local and personal. |
-| **How do I know it works?** | `pytest -q` → **104 passed**. Tests use a temporary database and need no network. |
+| **How do I know it works?** | `pytest -q` → **133 passed**. Tests use a temporary database and need no network. |
+
+---
+
+## Why this is not a normal todo app
+
+**Short answer:** a normal todo app is a list you maintain. LifePilot is an approval-first agent system that turns a sentence into a small, ranked plan — and refuses to store anything until you say yes.
+
+| Normal todo app | LifePilot |
+|---|---|
+| A row appears as soon as you press **Add** | A **pending proposal** appears first; only `yes` creates a row |
+| Confirmation is usually a UI convention | Approval is checked again in the HTTP route **and** the service layer |
+| One generic form or chatbot | Three specialised agents: **Capture**, **Planner**, **Reminder** |
+| Every message becomes a possible task | General questions get real answers; only actionable/task-like text creates a proposal |
+| You prioritise the list yourself | Ranking by deadline → priority → effort, capped at three priorities, with conflict warnings |
+| You set reminders manually | A local clock speaks first: morning briefing, evening review, bill and due-date nudges |
+| Parsing is hidden or immediate | `/tasks/explain` shows every inferred field, the reason behind it, and whether rules or a model produced it |
+| Data usually lives in an account | One local SQLite file; no account, no cloud sync, no telemetry |
+| One interface | Switch room, dashboard, terminal demo, and HTTP API all share one backend |
+| Changes can happen quietly | Save, delete, postpone, and plan persistence all wait for explicit approval |
+| Offline often means degraded | Deterministic rules are the default and need no key or network |
+
+The important distinction is not “chat instead of clicks”. It is **propose, never presume**: the system shows its interpretation, keeps the proposal out of storage, and makes the human decision the only write path.
+
+### Feature set
+
+**Capture and approval**
+- Plain-language tasks and bills become editable title, category, priority, deadline, time, effort, and context fields.
+- Field-by-field reasoning plus a visible `RULES` / `MODEL` engine badge.
+- Stateful pending proposals per `sender`/room; unrelated messages do not silently discard them.
+- `POST /tasks`, `DELETE /tasks/{id}`, `POST /plans/daily`, and `POST /plans/study` enforce approval in code.
+- Optional photo OCR proposes tasks from an image and reports honestly when Tesseract is unavailable.
+
+**Planning, not just listing**
+- Deadline → priority → effort ranking.
+- Daily plan capped at three priorities with total focus minutes.
+- Conflict detection for tasks sharing a date and suggestions for what to postpone.
+- Study plans calculated from an exam date and available hours.
+
+**Proactive reminders**
+- Automatic scheduler starts with the app and checks the clock every 60 seconds by default.
+- Morning briefing, evening review, upcoming bills, and due/overdue tasks.
+- Periodic **progress check-in** for one open task every 4 hours by default, rotating through tasks and deduplicated per interval.
+- Configurable with `LIFEPILOT_PROGRESS_INTERVAL_HOURS`; `0` disables progress check-ins.
+- Manual **Progress check** button previews the current question without re-sending it.
+- Deduplication ledger prevents the same nudge twice in its window.
+- Every message is written to a local outbox; Discord, Slack, or Switch webhooks are optional.
+- The scheduler reads tasks and bills; it never edits them.
+
+**General assistant**
+- Greetings, help requests, project questions, and progress updates are answered directly.
+- Rules-mode FAQ works offline; an optional model can answer open-ended general questions.
+- A status update is acknowledged but never writes to the database.
+- Only actionable text reaches Capture's proposal/approval gate.
+
+**Understanding**
+- Offline keyword rules by default, with identical output on every run.
+- Optional Groq, Gemini, OpenRouter, OpenAI, or local Ollama-compatible model.
+- Model output is validated and clamped by Python; failures fall back to rules.
+- `GET /health` reports the active engine.
+
+**Interfaces**
+- **Switch room:** three thin agents on Telegram/Discord.
+- **Dashboard:** persisted dark/light theme, stats, quick actions, general Q&A, progress check preview, filters, assistant, approval panel, responsive mobile layout, embedded fonts, and no CDN dependency.
+- **Terminal:** `--demo`, `--check`, and `--watch` modes.
+- **API:** FastAPI with `/docs`, `/openapi.json`, and a full route table.
+
+**Local data and preferences**
+- SQLite at `backend/data/lifepilot.db`; `.env`, `*.db`, and `outbox.log` are gitignored.
+- Stored preferences: `wake_up_time`, `reminder_time`, `study_subjects`, `bill_names`, `timezone`, and `name`.
+- One-click **Reset** clears all local data and the outbox.
+
+**Project quality**
+- Layered architecture: routes validate and delegate; business rules live in `services/` and `agents/`.
+- 133 automated tests using a temporary database and a frozen clock.
+- Single-user by design — no auth, no multi-tenant hosting, no Docker requirement.
 
 ---
 
@@ -78,7 +156,7 @@ The dashboard is not a mock-up. Its buttons call `/tasks/explain`, `/chat`, `/pl
 
 ## Dashboard tour
 
-The interface is served by `backend/ui.py`, uses embedded Manrope and Fraunces fonts, and works without a CDN. It includes a persisted dark/light theme, a sidebar, at-a-glance counters, quick actions, an editable parser, an assistant with an approval panel, filters, and a responsive mobile layout.
+The interface is served by `backend/ui.py`, uses embedded Manrope and Fraunces fonts, and works without a CDN. It includes a persisted dark/light theme, a compact header brand, at-a-glance counters, quick actions, general-question answers, a progress check preview, an editable parser, an assistant with an approval panel, filters, and a responsive mobile layout.
 
 | Light theme | Responsive layout |
 |---|---|
@@ -95,6 +173,11 @@ The interface is served by `backend/ui.py`, uses embedded Manrope and Fraunces f
 | ![Assistant approval gate](assets/screenshots/assistant-approval.png) | ![Daily plan](assets/screenshots/daily-plan.png) |
 | *Capture explains the proposal; “Yes, save” is the only write path.* | *Planner caps the day at three priorities and flags conflicts.* |
 
+| General questions get answers | Periodic progress check-in |
+|---|---|
+| ![General question](assets/screenshots/general-question.png) | ![Progress check](assets/screenshots/progress-check.png) |
+| *“What is LifePilot?” returns an Assistant answer, not a task proposal.* | *One open task is checked per interval; the scheduler never edits it.* |
+
 | Morning briefing and quick actions | Interactive API documentation |
 |---|---|
 | ![Morning briefing](assets/screenshots/reminders-briefings.png) | ![FastAPI docs](assets/screenshots/api-docs.png) |
@@ -107,11 +190,13 @@ The interface is served by `backend/ui.py`, uses embedded Manrope and Fraunces f
 ![LifePilot approval-first workflow](assets/workflow.svg)
 
 1. **You write one sentence.** It can arrive from the Switch room, the dashboard, or a direct API call.
-2. **The router picks an agent.** A small, deterministic keyword router chooses Capture, Planner, or Reminder.
+2. **The router picks an agent or the general Assistant.** A small, deterministic router chooses Capture, Planner, Reminder, or a real answer for general questions.
 3. **The agent proposes.** It returns a structured preview and a human-readable explanation. No SQL runs.
 4. **You answer.** `yes`, `no`, or an explicit equivalent resolves the pending proposal. Silence never equals consent.
 5. **Services enforce the rules.** Fields are validated and clamped; tasks are ranked; plans are capped; the approval flag is checked again.
 6. **Only an approved action writes.** SQLite stores tasks, bills, reminders, plans, and preferences. The scheduler reads the same data and posts to a local outbox or an optional webhook.
+
+General questions, greetings, and status updates never enter the approval gate: they receive an answer and create no proposal.
 
 ### The three agents
 
@@ -122,6 +207,8 @@ The interface is served by `backend/ui.py`, uses embedded Manrope and Fraunces f
 | **Reminder** | Stored tasks, bills, and preferences | Morning briefing, evening review, bill due-date reminders | Reschedule, delete, or silently edit your data |
 
 **Categories:** `study`, `personal`, `bill`, `health`, `household`, `work`
+
+The router also has a **general Assistant** path for questions, greetings, help requests, and progress updates. It is not a fourth Switch agent and never writes data.
 
 **Ranking rule:** nearest deadline → highest priority → least estimated effort. The cheapest urgent thing surfaces first. A daily plan is capped at three items because a list of twelve things is not a plan.
 
@@ -146,7 +233,7 @@ This is the part that makes LifePilot different, so it is enforced twice.
 | **HTTP boundary** | `POST /tasks`, `DELETE /tasks/{id}`, `POST /plans/daily`, `POST /plans/study` | `400`, a pending preview, or `plan_id: null` |
 | **Service boundary** | `task_service.create_task(...)`, `planner_service.save(...)` | `{"status":"pending_approval","preview":...}` or no insert |
 
-A prompt can be talked around; an approval flag in the code cannot.
+A prompt can be talked around; an approval flag in the code cannot. General questions are routed away from Capture entirely, so they never create a proposal in the first place.
 
 ### Example conversation
 
@@ -257,7 +344,7 @@ pytest -q
 ```
 
 ```text
-104 passed
+133 passed
 ```
 
 Tests point the application at a temporary SQLite file, so they never touch `backend/data/lifepilot.db`.
@@ -269,7 +356,7 @@ Tests point the application at a temporary SQLite file, so they never touch `bac
 | `python -m backend.main --check` | Print a setup report; hides any API key |
 | `python -m backend.main --watch --interval 30` | Run the reminder clock as a separate process |
 | `python -m backend.main --demo` | Reset to a sample day and print the workflow |
-| `pytest -q` | Run all 104 tests |
+| `pytest -q` | Run all 133 tests |
 | `deactivate` | Leave the virtual environment |
 
 ---
@@ -280,10 +367,11 @@ Tests point the application at a temporary SQLite file, so they never touch `bac
 2. In **Quick add**, type `pay electricity bill before Friday, urgent` and press **Parse →**.
 3. Review the editable title, category, priority, due date, time, and effort. The `RULES` or `MODEL` badge tells you which engine produced them.
 4. Press **Save task**. This calls `POST /tasks` with `approved: true`; nothing was stored before this click.
-5. In **Assistant**, type `plan my day`. Planner proposes three priorities and shows a **Needs approval** panel. Choose **Yes, save** or **No, discard**.
-6. Try **Morning**, **Evening**, and **Check reminders** in Quick actions.
-7. Toggle **Light / Dark** in the header; the choice is saved in `localStorage`.
-8. Use **Reset** only when you want to clear all local tasks, bills, reminders, plans, preferences, and the outbox.
+5. In **Assistant**, type `what is LifePilot?`. You get a real answer from **Assistant**, with no **Needs approval** panel.
+6. In **Assistant**, type `plan my day`. Planner proposes three priorities and shows a **Needs approval** panel. Choose **Yes, save** or **No, discard**.
+7. Try **Morning**, **Evening**, **Check reminders**, and **Progress check** in Quick actions.
+8. Toggle **Light / Dark** in the header; the choice is saved in `localStorage`.
+9. Use **Reset** only when you want to clear all local tasks, bills, reminders, plans, preferences, and the outbox.
 
 ---
 
@@ -366,6 +454,7 @@ Without a provider, keyword rules are used and the app works fully offline. `GET
 | `LIFEPILOT_TICK_INTERVAL` | `60` | Seconds between scheduler checks |
 | `LIFEPILOT_TASK_WINDOW` | `1` | Days ahead to warn about a task |
 | `LIFEPILOT_BILL_WINDOW` | `3` | Days before a bill’s due date to start reminding |
+| `LIFEPILOT_PROGRESS_INTERVAL_HOURS` | `4` | Hours between periodic progress check-ins; `0` disables them |
 | `LIFEPILOT_DISCORD_WEBHOOK` | blank | Optional Discord delivery |
 | `LIFEPILOT_SLACK_WEBHOOK` | blank | Optional Slack delivery |
 | `LIFEPILOT_SWITCH_WEBHOOK` | blank | Optional Switch webhook delivery |
@@ -437,6 +526,7 @@ Open **<http://localhost:8000/docs>** for request schemas, response models, and 
 | `POST` | `/photo/tasks` | OCR → proposals, never saves |
 | `GET` / `PUT` | `/memory` | Read/write user preferences |
 | `POST` | `/reminders/tick?force=true` | Run one scheduler pass immediately |
+| `POST` | `/reminders/progress` | Preview the current progress question without re-delivering it |
 | `GET` | `/reminders/history?limit=20` | What the scheduler actually sent |
 
 **Preference keys:** `wake_up_time`, `reminder_time`, `study_subjects`, `bill_names`, `timezone`, `name`.
@@ -540,7 +630,7 @@ lifepilot/
 
 ```bash
 pytest -q
-# 104 passed
+# 133 passed
 ```
 
 | Area | Covered by |
@@ -548,7 +638,8 @@ pytest -q
 | Parsing, categories, relative dates, approval gate, CRUD, photo proposals | `test_tasks.py` |
 | Ranking, conflicts, three-priority cap, study plans | `test_planner.py` |
 | Bills, briefings, reviews, memory, routes, chat routing | `test_bills.py` |
-| Automatic scheduler and date-sensitive reminders | `test_reminders.py` |
+| Automatic scheduler, date-sensitive reminders, and progress check-ins | `test_reminders.py` |
+| General-question routing and optional model answers | `test_general_assistant.py` |
 | Switch template contract | `test_template.py` |
 | Rules/model understanding and validation | `test_understanding.py` |
 
@@ -563,6 +654,7 @@ The suite uses a throwaway SQLite database through `tests/conftest.py`. Date-sen
 - **Agents are thin.** They call the backend and post its reply verbatim. One implementation of each rule means chat and API cannot disagree.
 - **Reminders are read-only.** The scheduler reads tasks and bills and writes only its delivery ledger. It never completes, postpones, or deletes a task.
 - **Rules mode is a feature.** Zero paid APIs, identical output on every run, and an auditable parse make demos reproducible.
+- **General questions are not tasks.** The router answers them directly; only actionable text reaches the approval gate.
 - **No cloud required.** Mock weather and sample bills keep the demo self-contained. Fonts are embedded; no CDN is needed for the dashboard.
 - **Tests never touch your data.** A temporary database and frozen clock make the suite safe and deterministic.
 - **Single-user by design.** No login, no tenant model, no hosted sync. That boundary keeps the project small and honest.
@@ -579,6 +671,8 @@ These are the practical lessons from the build, kept because they help the next 
 - **Two tests only passed on one calendar day.** They compared fixed dates with `date.today()`. The reminder tests now freeze the clock and sample tasks are built at call time, so the suite passes on any day.
 - **OCR tells the truth.** If Tesseract is missing, `/photo/tasks` says `ocr_available: false`; it does not claim to have read an empty image.
 - **Approval is not just a prompt.** `POST /tasks` returns `400` without `approved: true`, and `task_service.create_task(..., approved=False)` returns a preview with no insert.
+- **General questions used to become fake tasks.** The original chat router fell through to Capture for every message. A dedicated Assistant path and task-intent heuristics now keep Q&A out of the proposal flow.
+- **Progress check-ins needed their own dedupe.** A periodic question is keyed by task, date, and interval bucket; the manual button previews it instead of sending it again.
 
 ---
 
@@ -611,7 +705,7 @@ These are the practical lessons from the build, kept because they help the next 
 | Tests appear to use your real DB | A `LIFEPILOT_DB` override leaked into the test environment | Unset it; `conftest.py` normally redirects to a temporary file |
 | `source: command not found` on Windows | macOS/Linux activation command used | Use `.venv\Scripts\activate` |
 
-Still stuck? Run `pytest -q`. If all 104 tests pass, the code is fine and the problem is environmental.
+Still stuck? Run `pytest -q`. If all 133 tests pass, the code is fine and the problem is environmental.
 
 ---
 
@@ -622,6 +716,12 @@ No. Rules mode works offline. A key only improves natural-language understanding
 
 **Do I need Telegram, Discord, or Switch?**  
 No. They provide the intended chat experience, but the dashboard, demo, tests, and API are complete on their own.
+
+**Will a general question create a task?**  
+No. Questions, greetings, help requests, and progress updates go to the Assistant. Only actionable/task-like text creates a proposal.
+
+**How often does LifePilot ask about progress?**  
+By default, one open task is checked every 4 hours during your configured active hours. Set `LIFEPILOT_PROGRESS_INTERVAL_HOURS` to another value, or `0` to disable it. The manual **Progress check** button only previews the current question.
 
 **Can I use it completely offline?**  
 Yes, with the default rules mode and no webhooks. `/docs` may use CDN assets in a browser, but the app itself does not need them.

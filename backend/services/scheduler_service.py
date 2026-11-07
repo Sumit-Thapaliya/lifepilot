@@ -7,6 +7,7 @@ and messages you:
     * a task that is due today or overdue
     * the morning briefing, once, at your wake-up time
     * the evening review, once, at your reminder time
+    * a periodic progress check-in for one open task
 
 Design rules, in order of importance:
 
@@ -34,6 +35,7 @@ from .task_service import list_tasks
 
 DEFAULT_BILL_WINDOW = 3
 DEFAULT_TASK_WINDOW = 1
+DEFAULT_PROGRESS_INTERVAL_HOURS = 4
 QUIET_START = dt_time(0, 0)
 
 
@@ -194,6 +196,40 @@ def morning_due_now(now: datetime) -> bool:
     return now.time() >= dt_time(hour, minute)
 
 
+def _parse_time(value: str, fallback: dt_time) -> dt_time:
+    """Parse a 24-hour HH:MM preference without letting bad data crash a tick."""
+    try:
+        hour, minute = (int(part) for part in str(value).split(":")[:2])
+        return dt_time(hour, minute)
+    except (ValueError, AttributeError):
+        return fallback
+
+
+def progress_interval_hours() -> int:
+    """Hours between progress check-ins. 0 disables them; 24 is the maximum."""
+    return min(24, max(0, _env_int("LIFEPILOT_PROGRESS_INTERVAL_HOURS", DEFAULT_PROGRESS_INTERVAL_HOURS)))
+
+
+def progress_due_now(now: datetime, force: bool = False) -> bool:
+    """Progress check-ins stay inside the user's active hours unless forced.
+
+    ``force`` is used by the dashboard button and tests. It ignores the clock
+    window but still respects ``LIFEPILOT_PROGRESS_INTERVAL_HOURS=0`` and the
+    per-interval dedupe key, so it can never spam the same check-in.
+    """
+    hours = progress_interval_hours()
+    if hours <= 0:
+        return False
+    if force:
+        return True
+    start = _parse_time(_memory_time("wake_up_time", "07:00"), dt_time(7, 0))
+    end = _parse_time(_memory_time("reminder_time", "20:00"), dt_time(20, 0))
+    current = now.time()
+    if start <= end:
+        return start <= current <= end
+    return current >= start or current <= end
+
+
 # ------------------------------------------------------------------- builders
 
 def _bill_alerts(today: date) -> list[dict]:
@@ -279,12 +315,81 @@ def _briefing_alert(now: datetime, kind: str) -> dict:
     }
 
 
+def progress_preview(now: Optional[datetime] = None) -> dict:
+    """Return the current progress question without delivering it again.
+
+    The dashboard button is a preview: the automatic scheduler still owns
+    delivery and deduplication, so pressing the button cannot spam the user.
+    """
+    now = now or datetime.now()
+    hours = progress_interval_hours()
+    alerts = _progress_alerts(now, force=True)
+    if not alerts:
+        message = (
+            "Progress check-ins are disabled in configuration."
+            if hours <= 0
+            else "No open tasks to check right now."
+        )
+        return {
+            "message": message,
+            "task_id": None,
+            "already_sent": False,
+            "interval_hours": hours,
+        }
+    alert = alerts[0]
+    return {
+        "message": alert["text"],
+        "task_id": alert["task_id"],
+        "already_sent": already_sent("progress", alert["dedupe_key"]),
+        "interval_hours": hours,
+    }
+
+
+def _progress_alerts(now: datetime, force: bool = False) -> list[dict]:
+    """One periodic, rotating progress question for an open task.
+
+    The dedupe key includes the task id, date, and interval bucket, so one
+    check-in is delivered per bucket and the next bucket can ask about another
+    task. The scheduler only reads tasks; it never changes their status.
+    """
+    if not progress_due_now(now, force):
+        return []
+    tasks = [task for task in list_tasks(status="pending") if task.get("title")]
+    if not tasks:
+        return []
+
+    tasks.sort(
+        key=lambda task: (
+            task.get("deadline") or "9999-12-31",
+            task.get("priority", 3),
+            task.get("estimated_minutes", 30),
+        )
+    )
+    hours = progress_interval_hours()
+    bucket = now.hour // hours
+    task = tasks[bucket % len(tasks)]
+    detail = f" (priority {task.get('priority', 3)}, due {task.get('deadline') or 'no date'})"
+    return [
+        {
+            "kind": "progress",
+            "dedupe_key": f"{task['id']}:{now.date().isoformat()}:{bucket}",
+            "task_id": task["id"],
+            "text": (
+                f'Progress check — how is "{task["title"]}" going?{detail}\n'
+                "Reply with a short update, or use the dashboard checkbox when "
+                "it is done. I will not change any task from a status message."
+            ),
+        }
+    ]
+
+
 # ----------------------------------------------------------------------- tick
 
 def run_tick(
     now: Optional[datetime] = None,
     force: bool = False,
     include_briefings: bool = True,
+    include_progress: bool = True,
 ) -> dict:
     """One scheduler pass.
 
@@ -295,6 +400,9 @@ def run_tick(
     is considered due. It does NOT change the wording of a briefing: the
     underlying services always describe the real current date. In normal
     operation ``now`` is not passed, so everything agrees.
+
+    ``include_progress`` adds the periodic progress check-in. The dashboard's
+    manual button uses ``progress_preview()`` instead of re-delivering alerts.
     """
     now = now or datetime.now()
     today = now.date()
@@ -302,6 +410,9 @@ def run_tick(
     candidates: list[dict] = []
     candidates.extend(_task_alerts(today))
     candidates.extend(_bill_alerts(today))
+
+    if include_progress:
+        candidates.extend(_progress_alerts(now, force))
 
     if include_briefings:
         if force or morning_due_now(now):
@@ -356,4 +467,5 @@ def run_tick(
         "messages": results,
         "channel": deliver_service.configured_channel() or "outbox",
         "total_sent": sent_count(),
+        "progress_interval_hours": progress_interval_hours(),
     }

@@ -1,10 +1,12 @@
 """LifePilot UI — Champagne/Emerald dark theme + redesigned layout.
 
-- New positions: sidebar rail, sticky assistant, full-width quick-action bar,
-  quick-add folded inside the Tasks card, focus snapshot in the sidebar.
+- Full-width layout: compact brand in the header, sticky assistant rail,
+  full-width quick-action bar, quick-add folded inside the Tasks card.
 - User :root applied verbatim (#111311). All controls still hit the real API.
 - Embedded Manrope + Fraunces fonts (data URIs), larger type, styled inputs.
 - Dark/Light theme toggler (localStorage persisted, light = sage/cobalt palette).
+- General chat questions are answered without creating a task proposal.
+- Quick actions include a manual, deduplicated progress check-in.
 """
 
 from __future__ import annotations
@@ -141,27 +143,12 @@ select{appearance:none; background-color:var(--surface); background-image:url("d
 .badge.model{background:var(--primary-light); border-color:var(--primary-mid); color:var(--primary)}
 .badge.rules{background:var(--blue-light); border-color:var(--border2); color:var(--blue)}
 
-/* app shell — sidebar + main */
+/* app shell — full-width main */
 .app{display:flex; min-height:100vh}
-.sidebar{width:258px; flex-shrink:0; background:var(--sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow:hidden}
-.sidebar-top{padding:20px 18px 16px; border-bottom:1px solid var(--border)}
 .brand{display:flex; align-items:center; gap:11px}
 .logo{width:38px; height:38px; border-radius:12px; background:var(--gradient-primary); color:var(--bg); display:grid; place-items:center; font-family:var(--font-display); font-weight:700; font-size:16px; box-shadow:0 3px 10px rgba(213,185,130,.18), var(--glow)}
 .brand-text h1{font-family:var(--font-display); font-size:20px; font-weight:700; letter-spacing:-.02em; line-height:1.05}
 .brand-text p{font-size:13px; color:var(--muted); font-weight:600; margin-top:1px}
-.nav{padding:14px 10px; flex:1; overflow-y:auto}
-.nav-label{font-size:11px; font-weight:750; letter-spacing:.08em; text-transform:uppercase; color:var(--muted2); padding:10px 10px 6px}
-.nav-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; font-size:15px; font-weight:600; color:var(--text2); transition:var(--transition); cursor:pointer; border:1px solid transparent}
-.nav-item:hover{background:var(--card-hover); border-color:var(--border); color:var(--text)}
-.nav-item.active{background:var(--card); border-color:var(--border); color:var(--text); box-shadow:var(--shadow)}
-.nav-item span{font-size:15px; width:20px; text-align:center}
-.side-focus{margin:0 12px 12px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius2); padding:12px 13px}
-.side-focus .lbl{font-size:11px; font-weight:750; letter-spacing:.07em; text-transform:uppercase; color:var(--muted2)}
-.side-focus .nums{display:flex; justify-content:space-between; gap:8px; margin-top:7px}
-.side-focus .cell{text-align:center; flex:1}
-.side-focus .num{font-size:21px; font-weight:850; letter-spacing:-.03em; line-height:1}
-.side-focus .cap{font-size:11px; color:var(--muted); font-weight:600; margin-top:3px}
-.sidebar-bottom{padding:14px 16px; border-top:1px solid var(--border); background:rgba(20,23,20,.6)}
 .status{display:flex; align-items:center; gap:9px; font-size:13px; font-weight:600; color:var(--muted); background:var(--card); border:1px solid var(--border); padding:8px 11px; border-radius:999px}
 .dot{width:8px; height:8px; border-radius:50%; background:var(--border2); flex-shrink:0; transition:var(--transition)}
 .dot.on{background:var(--green); box-shadow:0 0 0 4px var(--green-light)}
@@ -169,10 +156,9 @@ select{appearance:none; background-color:var(--surface); background-image:url("d
 .header{position:sticky; top:0; z-index:10; background:rgba(17,19,17,.84); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 28px}
 .header-left h2{font-family:var(--font-display); font-size:19px; font-weight:700; letter-spacing:-.01em}
 .header-left p{font-size:13.5px; color:var(--muted); font-weight:500}
-.header-actions{display:flex; align-items:center; gap:8px}
+.header-actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end}
 .header-actions .status{padding:6px 10px}
-.mobile-header{display:none}
-.wrap{max-width:1080px; margin:0 auto; padding:20px 28px 36px; width:100%}
+.wrap{max-width:1240px; margin:0 auto; padding:20px 28px 36px; width:100%}
 .card,.add-box,.quickbar{scroll-margin-top:80px}
 
 /* banner */
@@ -297,7 +283,6 @@ html[data-theme="light"] body::before{background:
   radial-gradient(700px 460px at 88% 2%, rgba(120,151,124,.07), transparent 60%),
   radial-gradient(700px 520px at 50% 108%, rgba(233,139,82,.06), transparent 62%)}
 html[data-theme="light"] .header{background:rgba(233,238,229,.86)}
-html[data-theme="light"] .sidebar-bottom{background:rgba(220,229,216,.6)}
 html[data-theme="light"] .card-head{background:linear-gradient(180deg, rgba(255,255,255,.5), transparent)}
 html[data-theme="light"] .banner-badge{background:rgba(255,255,255,.65); color:var(--text2)}
 html[data-theme="light"] .btn-primary{box-shadow:0 3px 12px rgba(49,95,232,.18), var(--glow)}
@@ -309,15 +294,16 @@ html[data-theme="light"] textarea:focus,html[data-theme="light"] input:focus,htm
 html[data-theme="light"] .add-box textarea:focus,html[data-theme="light"] .chat-input input:focus{
   box-shadow:0 0 0 3px rgba(49,95,232,.18), var(--glow), inset 0 0 0 1px rgba(49,95,232,.22)
 }
-html[data-theme="light"] body,html[data-theme="light"] .header,html[data-theme="light"] .sidebar,
+html[data-theme="light"] body,html[data-theme="light"] .header,
 html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="light"] .quickbar{
   transition:background-color .25s ease,border-color .25s ease,color .25s ease,box-shadow .25s ease
 }
 @media(max-width:920px){
-  .sidebar{display:none}
-  .mobile-header{display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:var(--sidebar); border-bottom:1px solid var(--border)}
-  .app{flex-direction:column}
-  .header{padding:10px 16px}
+  .header{flex-direction:column; align-items:stretch; gap:10px; padding:10px 16px}
+  .header-left .brand{gap:9px}
+  .header-left h2{font-size:17px}
+  .header-left p{font-size:12.5px; white-space:nowrap}
+  .header-actions{justify-content:flex-start; width:100%}
   .header-actions .status{display:none}
   .wrap{padding:16px}
   .grid{grid-template-columns:1fr}
@@ -329,51 +315,21 @@ html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="l
 </head>
 <body>
 <div class="app">
-  <aside class="sidebar">
-    <div class="sidebar-top">
-      <div class="brand">
-        <div class="logo">Lp</div>
-        <div class="brand-text">
-          <h1>LifePilot</h1>
-          <p>Private • Local</p>
-        </div>
-      </div>
-    </div>
-    <nav class="nav">
-      <div class="nav-label">Navigate</div>
-      <a class="nav-item active" href="#tasks"><span>◷</span> Tasks</a>
-      <a class="nav-item" href="#add"><span>＋</span> Add task</a>
-      <a class="nav-item" href="#assistant"><span>✦</span> Assistant</a>
-      <a class="nav-item" href="#actions"><span>⚡</span> Quick actions</a>
-      <div class="nav-label" style="margin-top:12px">Tools</div>
-      <a class="nav-item" href="/docs"><span>↗</span> API docs</a>
-      <a class="nav-item" onclick="resetAll()"><span>↺</span> Reset data</a>
-    </nav>
-    <div class="side-focus">
-      <div class="lbl">Today at a glance</div>
-      <div class="nums">
-        <div class="cell"><div class="num" id="sideOpen">0</div><div class="cap">Open</div></div>
-        <div class="cell"><div class="num" id="sideDue">0</div><div class="cap">Due</div></div>
-        <div class="cell"><div class="num" id="sideDone">0</div><div class="cap">Done</div></div>
-      </div>
-    </div>
-    <div class="sidebar-bottom">
-      <div class="status"><span class="dot" id="statusDotSide"></span><span id="statusTextSide">Offline</span></div>
-    </div>
-  </aside>
 
   <div class="main">
-    <div class="mobile-header">
-      <div style="display:flex;align-items:center;gap:10px"><div class="logo" style="width:32px;height:32px;font-size:12px">Lp</div><b>LifePilot</b></div>
-      <a href="/docs" class="btn btn-ghost btn-sm">API</a>
-    </div>
     <header class="header">
       <div class="header-left">
-        <h2>Today</h2>
-        <p id="todayDate">—</p>
+        <div class="brand">
+          <div class="logo" style="width:32px;height:32px;font-size:13px">Lp</div>
+          <div>
+            <h2>LifePilot</h2>
+            <p id="todayDate">—</p>
+          </div>
+        </div>
       </div>
       <div class="header-actions">
         <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">Offline</span></span>
+        <a class="btn btn-ghost btn-sm" href="/docs">API docs</a>
         <button class="btn btn-primary btn-sm" onclick="focusAdd()">＋ New task</button>
         <button type="button" class="btn btn-ghost btn-sm theme-btn" id="themeBtn" onclick="toggleTheme()" aria-label="Toggle theme" aria-pressed="false" title="Switch to light theme">☀️ Light</button>
         <button class="btn btn-ghost btn-sm" onclick="resetAll()">Reset</button>
@@ -411,6 +367,7 @@ html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="l
         <button class="btn btn-ghost btn-sm" onclick="briefing('evening')">🌙 Evening</button>
         <button class="btn btn-ghost btn-sm" onclick="planDay()">📋 Plan my day</button>
         <button class="btn btn-ghost btn-sm" onclick="runTick()">🔔 Check reminders</button>
+        <button class="btn btn-ghost btn-sm" onclick="progressCheck()">📈 Progress check</button>
         <div class="brief" id="brief"></div>
         <div class="brief" id="pushLog"></div>
       </div>
@@ -467,11 +424,11 @@ html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="l
 
         <div class="right-rail">
           <div class="card" id="assistant">
-            <div class="card-head"><div><h2>Assistant</h2><p>“add a task…”, “plan my day”, “morning briefing”</p></div></div>
+            <div class="card-head"><div><h2>Assistant</h2><p>Ask a question, “add a task…”, “plan my day”</p></div></div>
             <div class="card-body">
               <div class="chat" id="chat"></div>
               <div class="chat-input">
-                <input type="text" id="msg" placeholder="Add a task or ask for your plan…" onkeydown="if(event.key==='Enter')sendMsg()">
+                <input type="text" id="msg" placeholder="Ask a question or add a task…" onkeydown="if(event.key==='Enter')sendMsg()">
                 <button class="btn btn-primary btn-sm" id="sendBtn" onclick="sendMsg()">Send</button>
               </div>
               <div class="pending" id="pendingBox">
@@ -499,12 +456,12 @@ async function api(path,opts){const r=await fetch(path,Object.assign({headers:{'
 async function checkHealth(){
   try{
     await api('/health');
-    ['statusDot','statusDotSide'].forEach(id=>{const e=$(id); if(e) e.classList.add('on')});
-    ['statusText','statusTextSide'].forEach(id=>{const e=$(id); if(e) e.textContent='Online'});
+    if($('statusDot')) $('statusDot').classList.add('on');
+    if($('statusText')) $('statusText').textContent='Online';
     return true;
   }catch(e){
-    ['statusDot','statusDotSide'].forEach(id=>{const el=$(id); if(el) el.classList.remove('on')});
-    ['statusText','statusTextSide'].forEach(id=>{const el=$(id); if(el) el.textContent='Offline'});
+    if($('statusDot')) $('statusDot').classList.remove('on');
+    if($('statusText')) $('statusText').textContent='Offline';
     return false;
   }
 }
@@ -556,9 +513,6 @@ async function loadTasks(){
     const all=await api('/tasks'); const open=all.filter(t=>t.status==='pending');
     const done=all.filter(t=>t.status==='done').length; const due=open.filter(t=>isDueToday(t.deadline)).length;
     $('statOpen').textContent=open.length; $('statDone').textContent=done; $('statDue').textContent=due; $('taskCount').textContent=tasks.length;
-    if($('sideOpen')) $('sideOpen').textContent=open.length;
-    if($('sideDue')) $('sideDue').textContent=due;
-    if($('sideDone')) $('sideDone').textContent=done;
     const list=$('tasksList');
     if(!tasks.length){list.innerHTML='<div class="empty"><p>No tasks here</p><span>Try quick add above or ask the assistant →</span></div>'; return}
     list.innerHTML=tasks.map(t=>`<div class="task ${t.status==='done'?'done':''}"><div class="check" onclick="completeTask(${t.id})"></div><div class="t-main"><div class="t-title">${esc(t.title)}</div><div class="t-meta"><span class="cat">${esc(t.category)}</span><span class="tag ${PRI[t.priority]||''}">P${t.priority}</span>${t.deadline?'<span>• '+esc(t.deadline)+'</span>':''}${t.suggested_time?'<span>• '+esc(t.suggested_time)+'</span>':''}<span>• ${t.estimated_minutes}m</span></div></div><button class="del" onclick="deleteTask(${t.id})">×</button></div>`).join('');
@@ -577,8 +531,9 @@ async function confirmPending(yes){try{const r=await api('/chat',{method:'POST',
 async function briefing(which){try{const d=await api(which==='morning'?'/briefings/morning':'/briefings/evening',{method:'POST'}); const b=$('brief'); b.classList.add('on'); b.textContent=d.message; $('pushLog').classList.remove('on')}catch(e){toast('Offline')}}
 async function planDay(){$('msg').value='plan my day'; sendMsg()}
 async function runTick(){try{const d=await api('/reminders/tick?force=true',{method:'POST'}); const log=$('pushLog'); log.classList.add('on'); if(!d.sent){log.textContent='Nothing due right now.'} else{log.textContent=d.sent+' sent via '+d.channel+':\\n\\n'+d.messages.map(m=>'• '+m.text.split('\\n')[0]).join('\\n')} $('brief').classList.remove('on')}catch(e){toast('Offline')}}
+async function progressCheck(){try{const d=await api('/reminders/progress',{method:'POST'});const log=$('pushLog');log.classList.add('on');const note=d.already_sent?'Already sent for this interval.':'Scheduled for the next automatic tick.';log.textContent=d.message+String.fromCharCode(10,10)+note;$('brief').classList.remove('on')}catch(e){toast('Offline')}}
 async function resetAll(){if(!confirm('Delete all local tasks, bills and reminders?')) return; await api('/reset',{method:'POST'}); toast('Cleared'); loadTasks(); refreshPending(); $('brief').classList.remove('on'); $('pushLog').classList.remove('on')}
-$('chat').innerHTML='<div class="bubble sys">Assistant ready — try “add a task to buy milk”</div>';
+$('chat').innerHTML='<div class="bubble sys">Assistant ready — ask a question or try “add a task to buy milk”</div>';
 $('todayDate').textContent=new Date().toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric', year:'numeric'});
 function applyTheme(t){
   document.documentElement.dataset.theme=t;
@@ -596,10 +551,6 @@ function toggleTheme(){
 }
 applyTheme(document.documentElement.dataset.theme||'dark');
 checkHealth(); parseSentence(); loadTasks(); refreshPending(); setInterval(checkHealth,15000);
-document.querySelectorAll('.nav-item[href^="#"]').forEach(a=>a.addEventListener('click',e=>{
-  const id=a.getAttribute('href').slice(1); const el=document.getElementById(id);
-  if(el){ e.preventDefault(); el.scrollIntoView({behavior:'smooth', block:'start'}); document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); a.classList.add('active')}
-}));
 </script>
 </body>
 </html>
