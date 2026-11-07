@@ -58,6 +58,31 @@ class ConfirmRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Photos
+# ---------------------------------------------------------------------------
+
+
+class PhotoProposal(BaseModel):
+    """One editable task found in OCR text."""
+
+    title: str
+    category: Category = "personal"
+    priority: int = Field(3, ge=1, le=5)
+    deadline: Optional[str] = None
+    suggested_time: Optional[str] = None
+    estimated_minutes: int = Field(30, ge=1, le=600)
+    notes: str = ""
+    context: str = ""
+
+
+class PhotoConfirm(BaseModel):
+    """Explicit approval of the reviewed photo proposals."""
+
+    approved: bool = False
+    proposals: list[PhotoProposal] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Plans
 # ---------------------------------------------------------------------------
 

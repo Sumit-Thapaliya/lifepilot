@@ -2,6 +2,10 @@
 
 This is the layer that makes LifePilot dynamic instead of if-else.
 
+Photo OCR is also classified here: the model decides which lines are real
+tasks and which are headings, doodles, or notes. Python still validates every
+field before anything can be saved.
+
     "read a book before bed"
         rule parser  ->  no date, no time, "personal"
         this layer   ->  "Read a book", 20:30, why: a book before bed is a
@@ -31,6 +35,8 @@ from typing import Optional
 from . import llm_service, memory_service, task_service
 from ..models import CATEGORIES
 
+MAX_PHOTO_TASKS = 10
+
 SYSTEM = """You turn one person's everyday sentence into a single task for a
 friendly life assistant. The user may be a child. They will not choose
 categories, priorities, or times - you infer all of it.
@@ -57,6 +63,57 @@ Return JSON with exactly these keys:
 Rules:
   - Never invent a deadline. If the sentence has no date, deadline is null.
   - If the sentence is a question or a feeling, not a task, set title to "".
+  - Return JSON only. No prose, no code fences.
+"""
+
+PHOTO_CLASSIFY_SYSTEM = """Classify OCR text from a photo of a handwritten or
+printed to-do list. Decide which lines are real tasks to ADD and which lines
+are NOT tasks and should be IGNORED. Do not turn the whole page into tasks.
+
+Return JSON with exactly this shape:
+  {
+    "add": [
+      {
+        "source_text": "original OCR line",
+        "title": "short action title",
+        "category": "study|personal|bill|health|household|work",
+        "priority": 1|2|3,
+        "deadline": "YYYY-MM-DD" or null,
+        "suggested_time": "HH:MM" or null,
+        "estimated_minutes": 30,
+        "reason": "short reason this is a real task"
+      }
+    ],
+    "ignore": [
+      {"text": "original OCR line", "reason": "short reason this is not a task"}
+    ]
+  }
+
+Rules:
+  - One object per source line. Do not merge lines.
+  - ADD only lines that ask the user to do something.
+  - IGNORE headings, dates, page numbers, doodles, checkboxes, and random notes.
+  - Never invent a deadline. Use the TODAY value to resolve relative dates.
+  - If there are no real tasks, return {"add": [], "ignore": [...]}.
+  - Return JSON only. No prose, no code fences.
+"""
+
+
+PHOTO_SYSTEM = """You read OCR text from a photo of a handwritten or printed
+to-do list. Your job is to find the actionable tasks and ignore headings,
+dates, page numbers, doodles, checkboxes, and random notes.
+
+Return JSON with exactly this shape:
+  {"tasks": [{"title": "...", "category": "study|personal|bill|health|household|work",
+              "priority": 1|2|3, "deadline": "YYYY-MM-DD" or null,
+              "suggested_time": "HH:MM" or null,
+              "estimated_minutes": 30, "context": "short reason"}]}
+
+Rules:
+  - One object per real task. If there are no real tasks, return {"tasks": []}.
+  - Rewrite each title as a short action, but keep the user's meaning.
+  - Never invent a deadline. Use the TODAY value to resolve relative dates.
+  - If a line is a question, a feeling, or a heading, skip it.
   - Return JSON only. No prose, no code fences.
 """
 
@@ -140,6 +197,87 @@ def _clean_title(value) -> str:
     return title[:120]
 
 
+PHOTO_ACTION_WORDS = (
+    "finish", "pay", "call", "buy", "submit", "read", "write", "clean",
+    "review", "book", "send", "pick", "walk", "study", "practice",
+    "prepare", "fix", "reply", "email", "meet", "schedule", "order",
+    "water", "feed", "wash", "cook", "check", "return", "renew", "print",
+    "sign", "file", "update", "plan", "draft", "attend", "visit", "take",
+    "make", "do", "bring", "collect", "book", "cancel", "confirm",
+)
+
+PHOTO_TASK_HINTS = (
+    "bill", "exam", "homework", "assignment", "report", "dentist", "doctor",
+    "rent", "meeting", "groceries", "milk", "medicine", "deadline",
+)
+
+
+def _photo_rule_proposals(lines: list[str], limit: int) -> list[dict]:
+    """Offline fallback: keep lines that actually look like tasks."""
+    proposals: list[dict] = []
+    for line in lines:
+        cleaned = re.sub(r"^\s*(?:\d+[.)]|[-*•]|\[[ xX]\])\s*", "", line).strip()
+        if len(cleaned) < 4:
+            continue
+        lowered = cleaned.lower()
+        if cleaned.isupper() and len(cleaned.split()) <= 3:
+            continue
+        if "doodle" in lowered or re.match(r"^page\s+\d+", lowered):
+            continue
+        words = re.findall(r"[a-z]+", lowered)
+        if not any(word in PHOTO_ACTION_WORDS for word in words) and not any(
+            hint in lowered for hint in PHOTO_TASK_HINTS
+        ):
+            continue
+        parsed = task_service.parse_task_text(cleaned)
+        if not parsed["title"]:
+            continue
+        proposals.append(parsed)
+        if len(proposals) >= limit:
+            break
+    return proposals
+
+
+def _strip_line_marker(line: str) -> str:
+    return re.sub(r"^\s*(?:\d+[.)]|[-*•]|\[[ xX]\])\s*", "", line).strip()
+
+
+def _normalise_line(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+
+
+def _photo_rule_classification(lines: list[str], limit: int) -> dict:
+    """Offline fallback: split OCR lines into real tasks and ignored lines."""
+    proposals = _photo_rule_proposals(lines, limit)
+    add: list[dict] = []
+    for proposal in proposals:
+        source = proposal.get("notes") or proposal["title"]
+        add.append({
+            **proposal,
+            "source_text": source,
+            "reason": "Contains an action word or a task hint.",
+        })
+
+    covered = set()
+    for item in add:
+        covered.add(_normalise_line(item["source_text"]))
+        covered.add(_normalise_line(item["title"]))
+
+    ignore: list[dict] = []
+    seen: set[str] = set()
+    for line in lines:
+        cleaned = _strip_line_marker(line)
+        key = _normalise_line(cleaned)
+        if not key or key in seen or key in covered:
+            continue
+        seen.add(key)
+        ignore.append({
+            "text": cleaned[:160],
+            "reason": "Heading, doodle, page number, or non-action line.",
+        })
+    return {"add": add, "ignore": ignore}
+
+
 def understand(text: str, today: Optional[date] = None) -> dict:
     """Read one sentence. Returns parsed fields plus how they were produced."""
     today = today or date.today()
@@ -214,6 +352,228 @@ def understand(text: str, today: Optional[date] = None) -> dict:
             "estimated_minutes": f"model estimated {parsed['estimated_minutes']} minutes",
             "context": parsed["context"] or "no explanation offered",
         },
+        "raw_model_json": raw,
+    }
+
+
+def understand_photo_text(text: str, today: Optional[date] = None,
+                          limit: int = MAX_PHOTO_TASKS) -> dict:
+    """Turn raw OCR text into validated task proposals.
+
+    A configured language model reads the whole page and decides which lines
+    are tasks. Every field is validated and clamped in Python. If no model is
+    configured, or the model fails, readable lines fall back to keyword rules.
+    Nothing is written to the database here.
+    """
+    today = today or date.today()
+    lines = [line.strip() for line in text.splitlines() if len(line.strip()) > 3]
+    baseline = _photo_rule_proposals(lines, limit)
+    rules_result = {
+        "proposals": baseline,
+        "engine": "rules",
+        "engine_note": (
+            "No language model configured, so local rules kept the OCR lines "
+            "that look like actionable tasks."
+        ),
+        "reasoning": ["keyword rules filtered headings and kept task-like lines"],
+    }
+
+    if not llm_service.available():
+        return rules_result
+
+    user_prompt = (
+        f"TODAY is {today.isoformat()} ({today.strftime('%A')}).\n"
+        f"OCR TEXT:\n{text}\n"
+        "Return the JSON object now."
+    )
+    raw = llm_service.complete_json(PHOTO_SYSTEM, user_prompt)
+    if not raw:
+        fallback = dict(rules_result)
+        fallback["engine"] = "rules fallback"
+        fallback["engine_note"] = (
+            llm_service.status().get("last_error")
+            or "The model returned nothing, so keyword rules were used."
+        )
+        return fallback
+
+    items = raw.get("tasks") if isinstance(raw, dict) else None
+    if items is None and isinstance(raw, dict) and "title" in raw:
+        items = [raw]
+    if not isinstance(items, list):
+        fallback = dict(rules_result)
+        fallback["engine"] = "rules fallback"
+        fallback["engine_note"] = "The model returned an unexpected shape, so keyword rules were used."
+        return fallback
+
+    proposals: list[dict] = []
+    seen: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source_text") or item.get("text") or item.get("title") or "")
+        base = task_service.parse_task_text(source)
+        title = _clean_title(item.get("title") or item.get("text") or source)
+        if not title or title.lower() in seen:
+            continue
+        seen.add(title.lower())
+        proposals.append({
+            "title": title,
+            "category": _coerce_category(item.get("category")) or base["category"],
+            "priority": _coerce_priority(item.get("priority")) or base["priority"],
+            "deadline": _coerce_deadline(item.get("deadline")) or base["deadline"],
+            "suggested_time": _coerce_time(item.get("suggested_time")),
+            "estimated_minutes": _coerce_minutes(
+                item.get("estimated_minutes"), base["estimated_minutes"]
+            ),
+            "notes": base.get("notes", "") or source,
+            "context": str(item.get("context") or "")[:160],
+        })
+        if len(proposals) >= limit:
+            break
+
+    if not proposals:
+        fallback = dict(rules_result)
+        fallback["engine"] = "rules fallback"
+        fallback["engine_note"] = "The model found no tasks, so keyword rules were used."
+        return fallback
+
+    return {
+        "proposals": proposals,
+        "engine": f"model: {llm_service.model_name()}",
+        "engine_note": "The model found the tasks in the OCR text, then Python validated every field.",
+        "reasoning": [
+            f"model selected {p['title']} as priority {p['priority']}"
+            for p in proposals
+        ],
+        "raw_model_json": raw,
+    }
+
+
+def classify_photo_text(text: str, today: Optional[date] = None,
+                        limit: int = MAX_PHOTO_TASKS) -> dict:
+    """Decide which OCR lines are real tasks and which are not.
+
+    The configured model explains both decisions. Python validates every
+    proposed field and uses deterministic line rules when the model is
+    unavailable or returns an unusable shape. Nothing is written to storage.
+    """
+    today = today or date.today()
+    lines = [line.strip() for line in text.splitlines() if len(line.strip()) > 3]
+    rules = _photo_rule_classification(lines, limit)
+    rules_result = {
+        **rules,
+        "engine": "rules",
+        "engine_note": (
+            "No language model configured, so local rules marked action lines "
+            "as tasks and everything else as ignored."
+        ),
+        "reasoning": ["keyword rules separated action lines from headings and notes"],
+    }
+
+    if not llm_service.available():
+        return rules_result
+
+    user_prompt = (
+        f"TODAY is {today.isoformat()} ({today.strftime('%A')}).\n"
+        f"OCR TEXT:\n{text}\n"
+        "Return the JSON object now."
+    )
+    raw = llm_service.complete_json(PHOTO_CLASSIFY_SYSTEM, user_prompt)
+
+    def fallback(note: str) -> dict:
+        result = dict(rules_result)
+        result["engine"] = "rules fallback"
+        result["engine_note"] = note
+        return result
+
+    if not raw or not isinstance(raw, dict):
+        return fallback(llm_service.status().get("last_error") or "The model returned nothing.")
+    add_items = raw.get("add")
+    ignore_items = raw.get("ignore")
+    if not isinstance(add_items, list) or not isinstance(ignore_items, list):
+        return fallback("The model returned an unexpected shape, so keyword rules were used.")
+
+    add: list[dict] = []
+    seen_add: set[str] = set()
+    for item in add_items:
+        if not isinstance(item, dict):
+            continue
+        raw_source = str(item.get("source_text") or item.get("text") or item.get("title") or "").strip()
+        source = _strip_line_marker(raw_source)
+        base = task_service.parse_task_text(source)
+        raw_title = str(item.get("title") or item.get("text") or source)
+        title = _clean_title(_strip_line_marker(raw_title))
+        key = _normalise_line(title)
+        if not title or key in seen_add:
+            continue
+        seen_add.add(key)
+        reason = str(
+            item.get("reason") or item.get("context")
+            or "The model identified this as an actionable task."
+        )[:160]
+        add.append({
+            "title": title,
+            "category": _coerce_category(item.get("category")) or base["category"],
+            "priority": _coerce_priority(item.get("priority")) or base["priority"],
+            "deadline": _coerce_deadline(item.get("deadline")) or base["deadline"],
+            "suggested_time": _coerce_time(item.get("suggested_time")),
+            "estimated_minutes": _coerce_minutes(
+                item.get("estimated_minutes"), base["estimated_minutes"]
+            ),
+            "notes": base.get("notes", "") or source,
+            "context": reason,
+            "reason": reason,
+            "source_text": source or title,
+        })
+        if len(add) >= limit:
+            break
+
+    model_ignore: dict[str, str] = {}
+    for item in ignore_items:
+        if not isinstance(item, dict):
+            continue
+        raw_ignore = str(item.get("text") or item.get("source_text") or "")
+        key = _normalise_line(_strip_line_marker(raw_ignore))
+        if not key:
+            continue
+        model_ignore[key] = str(item.get("reason") or "Not an actionable task.")[:160]
+
+    covered = set()
+    for item in add:
+        covered.add(_normalise_line(item["source_text"]))
+        covered.add(_normalise_line(item["title"]))
+
+    ignore: list[dict] = []
+    seen_ignore: set[str] = set()
+    for line in lines:
+        cleaned = _strip_line_marker(line)
+        key = _normalise_line(cleaned)
+        if not key or key in seen_ignore or key in covered:
+            continue
+        seen_ignore.add(key)
+        ignore.append({
+            "text": cleaned[:160],
+            "reason": model_ignore.get(key, "Not marked as a task by the model."),
+        })
+    for key, reason in model_ignore.items():
+        if key not in seen_ignore and key not in covered:
+            seen_ignore.add(key)
+            ignore.append({"text": key[:160], "reason": reason})
+
+    if not add and not ignore:
+        return fallback("The model returned no classification, so keyword rules were used.")
+
+    return {
+        "add": add,
+        "ignore": ignore,
+        "engine": f"model: {llm_service.model_name()}",
+        "engine_note": (
+            "The model classified each OCR line as a task or not a task, "
+            "then Python validated every proposed field."
+        ),
+        "reasoning": [
+            f"model marked {len(add)} line(s) to add and {len(ignore)} line(s) to ignore"
+        ],
         "raw_model_json": raw,
     }
 

@@ -119,7 +119,7 @@ lifepilot/
 ├── .env.example         template for your settings   <-- used in Step 5
 ├── backend/             the application
 ├── switch/              the Switch template
-├── tests/               133 automated tests
+├── tests/               148 automated tests
 └── assets/              diagrams and the demo script
 ```
 
@@ -190,6 +190,8 @@ What you should see:
   you know the environment is active.
 * After `pip install`, a series of `Downloading…` lines, ending in
   `Successfully installed fastapi… uvicorn…` and the rest.
+* The same command installs RapidOCR. No separate Tesseract download is
+  needed on Windows, macOS, or Linux.
 
 If you open a **new** terminal later, you must run the `activate` line again.
 It does not stay on.
@@ -316,7 +318,8 @@ means "use the default". Here is what each one would do if you filled it in:
 | `LIFEPILOT_TICK=1` | **Keep the 1** | `1` = reminders run automatically. `0` = switch the clock off. |
 | `LIFEPILOT_DB` | **Yes** | Blank uses `backend/data/lifepilot.db` inside the project. |
 | `LIFEPILOT_TIMEZONE` | **Set it** | Your own timezone, e.g. `Asia/Kathmandu`. Gets `UTC` otherwise. |
-| `TESSERACT_CMD` | **Yes** | Only if Tesseract is installed somewhere unusual. |
+| `LIFEPILOT_OCR_ENGINE=auto` | **Keep the auto** | Prefers pip-installed RapidOCR. Set `tesseract`, `rapidocr`, or `none` only to force a choice. |
+| `TESSERACT_CMD` | **Yes** | Optional. Only if you chose Tesseract and its binary is somewhere unusual. |
 
 So after Step 5b, only **three** lines in your `.env` differ from the template:
 
@@ -444,7 +447,10 @@ In the page:
    You get a real answer; no task proposal is created.
 5. In the **Assistant** panel type `add a task to feed the dog` and press Enter.
    The agent proposes; reply `yes` to save, `no` to discard.
-6. Press **Progress check** in Quick actions to preview the periodic question
+6. Click **Add photo** in Quick add and choose a clear image of a handwritten
+   list. Read the **Add these** / **Ignore these** decisions in Assistant chat,
+   uncheck anything you do not want, then click **Add selected tasks**.
+7. Press **Progress check** in Quick actions to preview the periodic question
    for one open task. The automatic scheduler delivers it without spamming.
 
 ---
@@ -459,7 +465,7 @@ All of these run from the `lifepilot` folder with `(.venv)` active.
 | `uvicorn backend.main:app --reload` | Start the app. Reminders run on a timer inside it. |
 | `python -m backend.main --demo` | Print the whole workflow in the terminal. No browser needed. |
 | `python -m backend.main --watch --interval 30` | Run the reminder clock as its own process. |
-| `pytest -q` | Run the 133 tests. Should end `133 passed`. |
+| `pytest -q` | Run the 148 tests. Should end `148 passed`. |
 | `deactivate` | Leave the virtual environment. |
 
 Copy this project to another machine and you only repeat Steps 2–6.
@@ -564,6 +570,7 @@ where python
 | `'uvicorn' is not recognized` | The virtual environment is not active | Run the `activate` line from Step 4 again |
 | `ModuleNotFoundError: No module named 'backend'` | You are in the wrong folder | `cd` into the folder that contains `backend/` |
 | `ModuleNotFoundError: No module named 'fastapi'` | Packages not installed, or venv not active | Activate, then `pip install -r requirements.txt` |
+| `ocr_available: false` in the photo panel | OCR dependencies are missing | Activate, then `pip install -r requirements.txt`, and restart the app |
 | `[Errno 48] Address already in use` (macOS/Linux) or `10048` (Windows) | Something else is on port 8000 | `uvicorn backend.main:app --port 8001`, then open `localhost:8001` |
 | `source: command not found` on Windows | You used the macOS command | Use `.venv\Scripts\activate` |
 | Page loads but the badge says **RULES** | The key was not read | Check `.env` is in the same folder as `requirements.txt`, has no spaces around `=`, and that you restarted the server |

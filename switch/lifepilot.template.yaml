@@ -13,7 +13,7 @@ version: 2
 # IMPORTANT — WHERE THE INTELLIGENCE LIVES
 # Each agent below is a *thin shell*. It does not re-derive priorities, parse
 # dates, or invent plans; it calls the LifePilot backend, which is plain Python
-# with 133 tests. This keeps one implementation of every rule instead of two,
+# with 148 tests. This keeps one implementation of every rule instead of two,
 # and it means what the agents say in this room is exactly what the API returns.
 #
 # Before importing this template, run the backend on the agent machine:
@@ -80,7 +80,7 @@ resources:
     type: agent
     name: capture-agent
     display_name: LifePilot Capture
-    description: Turns messages, links, photos, and voice notes into structured items.
+    description: Turns messages, links, OCR lines, and voice notes into classified, structured items.
     provider: "{provider}"
     machine: "{machine}"
     directory: "{directory}"

@@ -6,7 +6,7 @@ You write in plain language. LifePilot turns that into a task, bill, daily plan,
 
 Built for the **Flip the Switch** hackathon: one room, three focused agents, one human veto.
 
-`Local-first` · `No API key required` · `No account` · `133 tests passing` · `MIT`
+`Local-first` · `No API key required` · `No account` · `148 tests passing` · `MIT`
 
 ![LifePilot dark dashboard](assets/screenshots/dashboard-dark.png)
 
@@ -48,11 +48,13 @@ Built for the **Flip the Switch** hackathon: one room, three focused agents, one
 | **What is the core idea?** | **Propose → explain → ask → store.** Nothing is saved, moved, or deleted without an explicit approval. |
 | **Do I need a key?** | No. Deterministic keyword rules work offline. An optional language model improves natural-language understanding. |
 | **Can I ask general questions?** | Yes. Questions, greetings, and progress updates get real answers; only actionable/task-like text creates a proposal. |
+| **Can I add tasks from a photo?** | Yes. Upload an image, read the **Add these** / **Ignore these** chat decisions, then approve only the selected tasks. |
+| **Do I need Tesseract on Windows?** | No. `pip install -r requirements.txt` installs RapidOCR, a pip-only OCR engine. Tesseract is optional. |
 | **Do I need Switch?** | No. The dashboard, CLI demo, tests, and API work independently. Switch is the conversational front door the project was built for. |
 | **Where is my data?** | One SQLite file: `backend/data/lifepilot.db`. It is gitignored and never committed. |
-| **What does it need?** | Python 3.10+ and `pip install -r requirements.txt`. No Docker, no database server, no signup. |
+| **What does it need?** | Python 3.10+ and `pip install -r requirements.txt`. No Docker, no database server, no external OCR binary, no signup. |
 | **What is out of scope?** | Authentication, multi-user accounts, cloud sync, and hosted deployment. This is deliberately local and personal. |
-| **How do I know it works?** | `pytest -q` → **133 passed**. Tests use a temporary database and need no network. |
+| **How do I know it works?** | `pytest -q` → **148 passed**. Tests use a temporary database and need no network. |
 
 ---
 
@@ -79,11 +81,14 @@ The important distinction is not “chat instead of clicks”. It is **propose, 
 ### Feature set
 
 **Capture and approval**
-- Plain-language tasks and bills become editable title, category, priority, deadline, time, effort, and context fields.
+- Plain-language tasks and bills become editable title, category, priority, deadline, suggested time, and context fields. Effort stays in the API and planner, not the Quick add form.
 - Field-by-field reasoning plus a visible `RULES` / `MODEL` engine badge.
 - Stateful pending proposals per `sender`/room; unrelated messages do not silently discard them.
 - `POST /tasks`, `DELETE /tasks/{id}`, `POST /plans/daily`, and `POST /plans/study` enforce approval in code.
-- Optional photo OCR proposes tasks from an image and reports honestly when Tesseract is unavailable.
+- **Photo to tasks:** upload an image, pip-installed RapidOCR reads the text, and the optional model classifies each line as a real task or a non-task with a reason. Python validates every field before anything is offered for approval.
+- Assistant chat shows **Add these** and **Ignore these** lists, selectable tasks, a collapsible OCR transcript, and a visible `RULES` / `MODEL` badge. **Add selected tasks** is the only write path; there is no separate photo review panel.
+- Without a configured model, local rules filter headings and doodles instead of turning every line into a task.
+- If no OCR engine is installed, the endpoint reports `ocr_available: false` rather than pretending it read the image.
 
 **Planning, not just listing**
 - Deadline → priority → effort ranking.
@@ -111,11 +116,12 @@ The important distinction is not “chat instead of clicks”. It is **propose, 
 - Offline keyword rules by default, with identical output on every run.
 - Optional Groq, Gemini, OpenRouter, OpenAI, or local Ollama-compatible model.
 - Model output is validated and clamped by Python; failures fall back to rules.
+- The same optional model interprets OCR text from uploaded photos and decides which lines are actionable.
 - `GET /health` reports the active engine.
 
 **Interfaces**
 - **Switch room:** three thin agents on Telegram/Discord.
-- **Dashboard:** persisted dark/light theme, stats, quick actions, general Q&A, progress check preview, filters, assistant, approval panel, responsive mobile layout, embedded fonts, and no CDN dependency.
+- **Dashboard:** persisted dark/light theme, stats, quick actions, a **My tasks** header shortcut, clear per-task **Delete** buttons, an emoji-free interface, photo upload, general Q&A, progress check preview, filters, assistant, approval panel, responsive mobile layout, embedded fonts, and no CDN dependency.
 - **Terminal:** `--demo`, `--check`, and `--watch` modes.
 - **API:** FastAPI with `/docs`, `/openapi.json`, and a full route table.
 
@@ -126,7 +132,7 @@ The important distinction is not “chat instead of clicks”. It is **propose, 
 
 **Project quality**
 - Layered architecture: routes validate and delegate; business rules live in `services/` and `agents/`.
-- 133 automated tests using a temporary database and a frozen clock.
+- 148 automated tests using a temporary database and a frozen clock.
 - Single-user by design: no auth, no multi-tenant hosting, no Docker requirement.
 
 ---
@@ -156,7 +162,7 @@ The dashboard is not a mock-up. Its buttons call `/tasks/explain`, `/chat`, `/pl
 
 ## Dashboard tour
 
-The interface is served by `backend/ui.py`, uses embedded Manrope and Fraunces fonts, and works without a CDN. It includes a persisted dark/light theme, a compact header brand, at-a-glance counters, quick actions, general-question answers, a progress check preview, an editable parser, an assistant with an approval panel, filters, and a responsive mobile layout.
+The interface is served by `backend/ui.py`, uses embedded Manrope and Fraunces fonts, and works without a CDN. It includes a persisted dark/light theme, a compact header brand, at-a-glance counters, quick actions, photo upload, general-question answers, a progress check preview, an editable parser, an assistant with an approval panel, filters, and a responsive mobile layout.
 
 | Light theme | Responsive layout |
 |---|---|
@@ -183,6 +189,14 @@ The interface is served by `backend/ui.py`, uses embedded Manrope and Fraunces f
 | ![Morning briefing](assets/screenshots/reminders-briefings.png) | ![FastAPI docs](assets/screenshots/api-docs.png) |
 | *Briefings, evening review, plan, and scheduler controls sit above the workspace.* | *Every route is inspectable and callable at `/docs`.* |
 
+### Photo to tasks
+
+![Photo to tasks](assets/screenshots/photo-to-tasks.png)
+
+*Upload a photo of a handwritten list. RapidOCR reads the text, the optional model classifies each line, Python validates every field, and nothing is saved until you click **Add selected tasks**. The screenshot above was captured with a local mock model, so the chat reports **MODEL**; without a provider it reports **RULES** and uses offline filters.*
+
+The Assistant chat posts an **Add these** / **Ignore these** decision for each OCR line, with a reason for every ignored line. Select or unselect the real tasks, then click **Add selected tasks**. The raw OCR transcript is collapsed inside the same bubble; there is no separate photo review panel.
+
 ---
 
 ## How it works
@@ -202,7 +216,7 @@ General questions, greetings, and status updates never enter the approval gate: 
 
 | Agent | Reads | Produces | Never does |
 |---|---|---|---|
-| **Capture** | Messages, links, photo transcripts, free-text tasks | Title, deadline, category, priority, effort, suggested time, and reasoning | Save before confirmation |
+| **Capture** | Messages, links, OCR lines, free-text tasks | Title, deadline, category, priority, suggested time, and reasoning; effort stays in the API | Save before confirmation |
 | **Planner** | Open tasks | A daily plan of at most three priorities, conflict warnings, postponement suggestions, study plans | Save or reorder a plan without approval |
 | **Reminder** | Stored tasks, bills, and preferences | Morning briefing, evening review, bill due-date reminders | Reschedule, delete, or silently edit your data |
 
@@ -281,7 +295,7 @@ Pending proposals are tracked per `sender`, so separate rooms or browser session
 
 - Python **3.10 or newer**
 - No Docker, no API key, no account, and no external database
-- About a minute for `pip install -r requirements.txt`
+- About a minute for `pip install -r requirements.txt` (includes the pip-only OCR engine)
 
 ### 1. Get the code
 
@@ -311,6 +325,8 @@ You should see `(.venv)` at the start of your prompt. Reactivate it in every new
 ```bash
 pip install -r requirements.txt
 ```
+
+This installs RapidOCR, so Windows does not need a separate Tesseract download. Run `python -m backend.main --check` to see the selected OCR engine.
 
 ### 4. Run the terminal demo
 
@@ -344,7 +360,7 @@ pytest -q
 ```
 
 ```text
-133 passed
+148 passed
 ```
 
 Tests point the application at a temporary SQLite file, so they never touch `backend/data/lifepilot.db`.
@@ -356,7 +372,7 @@ Tests point the application at a temporary SQLite file, so they never touch `bac
 | `python -m backend.main --check` | Print a setup report; hides any API key |
 | `python -m backend.main --watch --interval 30` | Run the reminder clock as a separate process |
 | `python -m backend.main --demo` | Reset to a sample day and print the workflow |
-| `pytest -q` | Run all 133 tests |
+| `pytest -q` | Run all 148 tests |
 | `deactivate` | Leave the virtual environment |
 
 ---
@@ -365,13 +381,14 @@ Tests point the application at a temporary SQLite file, so they never touch `bac
 
 1. Open **<http://localhost:8000/>**.
 2. In **Quick add**, type `pay electricity bill before Friday, urgent` and press **Parse →**.
-3. Review the editable title, category, priority, due date, time, and effort. The `RULES` or `MODEL` badge tells you which engine produced them.
+3. Review the editable title, category, priority, due date, and time. Effort stays in the API and planner, not this form. The `RULES` or `MODEL` badge tells you which engine produced the fields.
 4. Press **Save task**. This calls `POST /tasks` with `approved: true`; nothing was stored before this click.
 5. In **Assistant**, type `what is LifePilot?`. You get a real answer from **Assistant**, with no **Needs approval** panel.
 6. In **Assistant**, type `plan my day`. Planner proposes three priorities and shows a **Needs approval** panel. Choose **Yes, save** or **No, discard**.
-7. Try **Morning**, **Evening**, **Check reminders**, and **Progress check** in Quick actions.
-8. Toggle **Light / Dark** in the header; the choice is saved in `localStorage`.
-9. Use **Reset** only when you want to clear all local tasks, bills, reminders, plans, preferences, and the outbox.
+7. Press **Add photo** in Quick add and choose a clear image of a handwritten list. Read the **Add these** / **Ignore these** chat decisions, uncheck anything you do not want, then press **Add selected tasks**.
+8. Try **Morning**, **Evening**, **Check reminders**, and **Progress check** in Quick actions.
+9. Toggle **Light / Dark** in the header; the choice is saved in `localStorage`.
+10. Use **Reset** only when you want to clear all local tasks, bills, reminders, plans, preferences, and the outbox.
 
 ---
 
@@ -467,16 +484,12 @@ Every reminder is always written to `backend/data/outbox.log`. A webhook adds an
 |---|---|---|
 | `LIFEPILOT_DB` | `backend/data/lifepilot.db` | Override the SQLite path |
 | `LIFEPILOT_TIMEZONE` | `Asia/Kathmandu` | Default timezone for briefing/reminder times |
-| `TESSERACT_CMD` | auto-detected | Path to Tesseract if it is installed somewhere unusual |
+| `LIFEPILOT_OCR_ENGINE` | `auto` | `auto` prefers RapidOCR and falls back to Tesseract. Use `rapidocr`, `tesseract`, or `none` to force one. |
+| `TESSERACT_CMD` | blank | Optional path to the Tesseract binary when that engine is selected |
 
-Photo OCR is optional and requires the **Tesseract binary**, not just the Python package:
+`requirements.txt` installs **RapidOCR**, a local OCR engine that needs no system binary and no external download. On Windows, `pip install -r requirements.txt` is enough for photo upload. `auto` prefers RapidOCR; Tesseract is kept as an optional fallback for machines that already have it.
 
-```bash
-brew install tesseract                 # macOS
-sudo apt install tesseract-ocr        # Ubuntu / Debian
-```
-
-`POST /photo/tasks` proposes tasks from an image and never saves them. If OCR is unavailable, the endpoint reports `ocr_available: false` rather than pretending it read the image.
+`POST /photo/tasks` runs local OCR, then asks the configured language model to classify each line into `add` or `ignore` with a reason. Python validates every category, priority, date, time, and effort value and returns only the add proposals. With no model configured, offline rules classify headings and doodles as ignored and keep task-like lines. The endpoint never saves; `POST /photo/tasks/confirm` writes only when `approved: true`. If no OCR engine is installed, the response reports `ocr_available: false` rather than pretending it read the image. Run `python -m backend.main --check` to see the OCR and model status.
 
 ---
 
@@ -523,7 +536,8 @@ Open **<http://localhost:8000/docs>** for request schemas, response models, and 
 | `POST` / `GET` | `/reminders` | Create/list reminders |
 | `POST` | `/briefings/morning` | Morning briefing |
 | `POST` | `/briefings/evening` | Evening review |
-| `POST` | `/photo/tasks` | OCR → proposals, never saves |
+| `POST` | `/photo/tasks` | OCR plus AI line classification → add/ignore lists, never saves |
+| `POST` | `/photo/tasks/confirm` | Save selected photo tasks only with `approved: true` |
 | `GET` / `PUT` | `/memory` | Read/write user preferences |
 | `POST` | `/reminders/tick?force=true` | Run one scheduler pass immediately |
 | `POST` | `/reminders/progress` | Preview the current progress question without re-delivering it |
@@ -605,7 +619,7 @@ lifepilot/
 │   │   ├── scheduler_service.py    automatic, deduplicated pushes
 │   │   ├── ticker_service.py       in-app clock lifecycle
 │   │   ├── deliver_service.py      outbox + optional webhooks
-│   │   ├── photo_service.py        local OCR
+│   │   ├── photo_service.py        local OCR + AI line classification
 │   │   └── memory_service.py       user preferences
 │   └── data/
 │       ├── .gitkeep
@@ -630,7 +644,7 @@ lifepilot/
 
 ```bash
 pytest -q
-# 133 passed
+# 148 passed
 ```
 
 | Area | Covered by |
@@ -640,6 +654,7 @@ pytest -q
 | Bills, briefings, reviews, memory, routes, chat routing | `test_bills.py` |
 | Automatic scheduler, date-sensitive reminders, and progress check-ins | `test_reminders.py` |
 | General-question routing and optional model answers | `test_general_assistant.py` |
+| Photo OCR, AI line classification, validation, approval gate, and chat UI | `test_photo_ai.py` |
 | Switch template contract | `test_template.py` |
 | Rules/model understanding and validation | `test_understanding.py` |
 
@@ -655,6 +670,7 @@ The suite uses a throwaway SQLite database through `tests/conftest.py`. Date-sen
 - **Reminders are read-only.** The scheduler reads tasks and bills and writes only its delivery ledger. It never completes, postpones, or deletes a task.
 - **Rules mode is a feature.** Zero paid APIs, identical output on every run, and an auditable parse make demos reproducible.
 - **General questions are not tasks.** The router answers them directly; only actionable text reaches the approval gate.
+- **Photos stay approval-first.** OCR reads the image, the optional model classifies add/ignore lines with reasons, Python validates every field, and the user approves selected tasks before any insert.
 - **No cloud required.** Mock weather and sample bills keep the demo self-contained. Fonts are embedded; no CDN is needed for the dashboard.
 - **Tests never touch your data.** A temporary database and frozen clock make the suite safe and deterministic.
 - **Single-user by design.** No login, no tenant model, no hosted sync. That boundary keeps the project small and honest.
@@ -669,8 +685,12 @@ These are the practical lessons from the build, kept because they help the next 
 - **A model was retired.** A provider removed free access to a model mid-build. `LIFEPILOT_LLM_MODEL` lets you override provider defaults without editing code.
 - **A SQLite file lock only appeared on Windows.** Connections that were not closed looked fine on Linux/macOS but broke cleanup on Windows. Every connection now closes itself.
 - **Two tests only passed on one calendar day.** They compared fixed dates with `date.today()`. The reminder tests now freeze the clock and sample tasks are built at call time, so the suite passes on any day.
-- **OCR tells the truth.** If Tesseract is missing, `/photo/tasks` says `ocr_available: false`; it does not claim to have read an empty image.
+- **OCR tells the truth.** If no OCR engine is installed, `/photo/tasks` says `ocr_available: false`; it does not claim to have read an empty image.
+- **Windows OCR needed a separate download.** The first photo path required a Tesseract binary. RapidOCR now arrives through `requirements.txt`, so a plain `pip install -r requirements.txt` enables photo upload.
+- **OCR text needed a classification layer, not a second transcript.** A configured model now returns add/ignore decisions with reasons; offline rules filter non-task lines instead of making every line a task.
+- **Photo review belongs in Assistant chat.** The separate photo panel was removed, Quick add no longer asks for effort, a My tasks shortcut sits in the header, each task has a clear Delete button, and emoji glyphs were replaced with text or CSS.
 - **Approval is not just a prompt.** `POST /tasks` returns `400` without `approved: true`, and `task_service.create_task(..., approved=False)` returns a preview with no insert.
+- **Delete now honours its own approval gate.** The HTTP route forwards the approved flag to the service, so a confirmed **Delete** button really removes the task.
 - **General questions used to become fake tasks.** The original chat router fell through to Capture for every message. A dedicated Assistant path and task-intent heuristics now keep Q&A out of the proposal flow.
 - **Progress check-ins needed their own dedupe.** A periodic question is keyed by task, date, and interval bucket; the manual button previews it instead of sending it again.
 
@@ -681,7 +701,7 @@ These are the practical lessons from the build, kept because they help the next 
 - Tasks, bills, plans, reminders, and preferences live in `backend/data/lifepilot.db`.
 - `.env`, `*.db`, `*.db-journal`, and `backend/data/outbox.log` are gitignored.
 - The dashboard has no external stylesheet, script, font, or analytics request.
-- Without an LLM provider or webhook configured, no application data leaves the machine. If you configure one, the corresponding text is sent to that provider/destination; storage still stays local.
+- Without an LLM provider or webhook configured, no application data leaves the machine. If you configure one, the corresponding text, including OCR text from uploaded photos, is sent to that provider/destination; storage still stays local.
 - There is **no authentication**. The app is intended for localhost or a trusted private network. Do not expose port 8000 to the public internet.
 - CORS is permissive so the same-origin dashboard and Switch/preview clients can reach the API; this is a local-development convenience, not a public API gateway.
 - **Never commit a database containing real personal data.** Use **Reset** or `POST /reset` to clear local data before sharing a project archive.
@@ -700,12 +720,13 @@ These are the practical lessons from the build, kept because they help the next 
 | `no such table` | An old/incompatible database file | Stop the app, delete `backend/data/lifepilot.db`, restart; schema is recreated on boot |
 | Dashboard badge says `RULES` | No model key was found | Optional; check `.env` and `python -m backend.main --check`, then restart |
 | `401` / `Invalid API key` | Provider rejected the key | Create a new key and keep it only in `.env` |
-| `ocr_available: false` | Tesseract binary is not installed | Install Tesseract; see [Configuration](#configuration) |
+| `ocr_available: false` | No OCR engine is installed | Run `pip install -r requirements.txt`, then restart the app; see [Configuration](#configuration) |
+| Photo upload ignores a line you wanted | Rules or model classified it as a heading or note | Use Quick add for that line, or configure a provider for finer judgement |
 | Switch agents cannot answer | Backend is not reachable from the agent machine | Confirm `uvicorn` is running on that machine and port 8000 is reachable |
 | Tests appear to use your real DB | A `LIFEPILOT_DB` override leaked into the test environment | Unset it; `conftest.py` normally redirects to a temporary file |
 | `source: command not found` on Windows | macOS/Linux activation command used | Use `.venv\Scripts\activate` |
 
-Still stuck? Run `pytest -q`. If all 133 tests pass, the code is fine and the problem is environmental.
+Still stuck? Run `pytest -q`. If all 148 tests pass, the code is fine and the problem is environmental.
 
 ---
 
@@ -722,6 +743,9 @@ No. Questions, greetings, help requests, and progress updates go to the Assistan
 
 **How often does LifePilot ask about progress?**  
 By default, one open task is checked every 4 hours during your configured active hours. Set `LIFEPILOT_PROGRESS_INTERVAL_HOURS` to another value, or `0` to disable it. The manual **Progress check** button only previews the current question.
+
+**Can I add tasks from a photo?**  
+Yes. Press **Add photo**, choose an image with written tasks, and read the **Add these** / **Ignore these** decisions in Assistant chat. RapidOCR does the OCR with a normal `pip install -r requirements.txt`; no Tesseract setup is needed. A configured model classifies the real tasks, while offline rules are the fallback. Click **Add selected tasks** to store them, and nothing is saved before that click.
 
 **Can I use it completely offline?**  
 Yes, with the default rules mode and no webhooks. `/docs` may use CDN assets in a browser, but the app itself does not need them.

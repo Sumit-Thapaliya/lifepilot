@@ -7,6 +7,7 @@
 - Dark/Light theme toggler (localStorage persisted, light = sage/cobalt palette).
 - General chat questions are answered without creating a task proposal.
 - Quick actions include a manual, deduplicated progress check-in.
+- Photo upload posts AI classification into Assistant chat, then an approval gate.
 """
 
 from __future__ import annotations
@@ -173,7 +174,7 @@ select{appearance:none; background-color:var(--surface); background-image:url("d
 .stat:hover{transform:translateY(-1px); box-shadow:var(--shadow2); border-color:var(--border2)}
 .stat-label{font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
 .stat-num{font-family:var(--font-display); font-size:31px; font-weight:700; letter-spacing:-.03em; margin-top:4px; line-height:1}
-.stat-icon{width:44px; height:44px; border-radius:12px; display:grid; place-items:center; font-size:17px; font-weight:750}
+.stat-icon{width:44px; height:44px; border-radius:12px; display:grid; place-items:center; font-size:11px; font-weight:800; letter-spacing:.04em}
 .stat-icon.champagne{background:var(--primary-light); color:var(--primary); border:1px solid var(--primary-mid)}
 .stat-icon.copper{background:var(--copper-light); color:var(--copper); border:1px solid rgba(200,135,101,.3)}
 .stat-icon.emerald{background:var(--green-light); color:var(--green); border:1px solid var(--emerald2)}
@@ -220,7 +221,7 @@ select{appearance:none; background-color:var(--surface); background-image:url("d
 .check{width:21px; height:21px; border-radius:50%; border:1.7px solid var(--border2); flex:0 0 21px; margin-top:2px; display:grid; place-items:center; cursor:pointer; background:var(--card2); transition:var(--transition)}
 .check:hover{border-color:var(--primary); background:var(--primary-light)}
 .task.done .check{background:var(--gradient-primary); border-color:transparent; color:var(--bg)}
-.task.done .check::after{content:"✓"; font-size:11px; font-weight:850}
+.task.done .check::after{content:""; width:5px; height:9px; border:solid var(--bg); border-width:0 2px 2px 0; transform:rotate(45deg) translate(-1px,-1px)}
 .task.done .t-title{color:var(--muted2); text-decoration:line-through}
 .t-main{flex:1; min-width:0}
 .t-title{font-size:16px; font-weight:650; line-height:1.5; word-break:break-word; letter-spacing:-.015em}
@@ -230,14 +231,14 @@ select{appearance:none; background-color:var(--surface); background-image:url("d
 .tag.p2{background:var(--amber-light); border-color:var(--amber); color:var(--amber)}
 .cat{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:750; letter-spacing:.02em; padding:4px 10px; border-radius:999px; background:var(--emerald-light); border:1px solid var(--emerald2); color:var(--emerald); text-transform:capitalize}
 .cat::before{content:""; width:5px; height:5px; border-radius:50%; background:var(--emerald); flex:0 0 5px}
-.del{width:30px; height:30px; border-radius:9px; border:1px solid transparent; background:transparent; color:var(--muted2); display:grid; place-items:center; cursor:pointer; transition:var(--transition)}
+.del{width:auto; height:auto; min-height:28px; padding:5px 9px; border-radius:9px; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:11.5px; font-weight:750; white-space:nowrap; cursor:pointer; transition:var(--transition)}
 .del:hover{background:var(--red-light); color:var(--red); border-color:var(--red)}
 .empty{padding:28px 12px; text-align:center; color:var(--muted)}
 .empty p{font-size:15.5px; font-weight:700; color:var(--text2)}
 .empty span{font-size:13.5px; display:block; margin-top:4px}
 
 /* assistant */
-.chat{height:360px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:4px 0 6px; scrollbar-width:thin; scrollbar-color:var(--border2) transparent}
+.chat{height:430px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:4px 0 6px; scrollbar-width:thin; scrollbar-color:var(--border2) transparent}
 .bubble{max-width:87%; padding:11px 14px; border-radius:16px; font-size:15px; line-height:1.6; white-space:pre-wrap; word-break:break-word; font-weight:500}
 .bubble.user{align-self:flex-end; background:var(--gradient-primary); color:var(--bg); border-bottom-right-radius:6px; box-shadow:0 3px 10px rgba(213,185,130,.14), var(--glow)}
 .bubble.bot{align-self:flex-start; background:var(--card2); color:var(--text2); border-bottom-left-radius:6px; border:1px solid var(--border)}
@@ -254,6 +255,33 @@ select{appearance:none; background-color:var(--surface); background-image:url("d
 .brief.on{display:block}
 #toast{position:fixed; left:50%; bottom:20px; transform:translate(-50%,12px); background:var(--text); color:var(--bg); padding:11px 16px; border-radius:11px; font-size:14px; font-weight:650; box-shadow:var(--shadow2); opacity:0; pointer-events:none; transition:var(--transition); z-index:50}
 #toast.on{opacity:1; transform:translate(-50%,0)}
+.bubble.photo-chat{align-self:stretch; max-width:100%; width:100%; padding:0; overflow:hidden; white-space:normal; background:var(--card2); border:1px solid var(--border); border-radius:16px 16px 16px 6px}
+.bubble.photo-chat .who{padding:9px 14px; border-bottom:1px solid var(--border); color:var(--primary); background:var(--gradient-banner)}
+.photo-chat-body{padding:12px 14px 14px}
+.photo-chat-summary{font-size:14px; line-height:1.6; color:var(--text2); font-weight:500}
+.photo-chat-summary strong{color:var(--text)}
+.photo-chat-badges{display:flex; gap:6px; flex-wrap:wrap; margin-top:9px}
+.photo-chip{font-size:11px; font-weight:750; letter-spacing:.05em; text-transform:uppercase; padding:4px 9px; border-radius:999px; border:1px solid var(--border); background:var(--surface); color:var(--muted)}
+.photo-chip.ocr{background:var(--emerald-light); border-color:var(--emerald2); color:var(--emerald)}
+.photo-chat-section{margin-top:13px}
+.photo-chat-section h4{font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin-bottom:7px}
+.photo-chat-list{display:grid; gap:7px}
+.photo-chat-item{display:grid; grid-template-columns:18px minmax(0,1fr); align-items:start; gap:9px; padding:9px 10px; border:1px solid var(--border); border-radius:11px; background:var(--surface)}
+.photo-chat-item.ignore{border-style:dashed; opacity:.88}
+.photo-chat-item input[type=checkbox]{width:16px; height:16px; margin:3px 0 0; accent-color:var(--primary)}
+.photo-chat-item b{display:block; font-size:13.5px; line-height:1.45; color:var(--text); font-weight:650}
+.photo-chat-item small{display:block; font-size:11.5px; line-height:1.45; color:var(--muted); margin-top:2px}
+.photo-chat-empty{font-size:12.5px; color:var(--muted); padding:10px 12px; border:1px dashed var(--border2); border-radius:11px}
+.photo-chat-details{margin-top:13px; border:1px solid var(--border); border-radius:11px; overflow:hidden; background:var(--surface)}
+.photo-chat-details summary{list-style:none; cursor:pointer; padding:9px 12px; font-size:12px; font-weight:750; color:var(--text2); display:flex; align-items:center; justify-content:space-between; gap:10px}
+.photo-chat-details summary::-webkit-details-marker{display:none}
+.photo-chat-details summary span{font-size:10.5px; color:var(--muted); font-weight:650}
+.photo-chat-details summary::after{content:'▾'; color:var(--primary); font-size:12px; transition:transform .2s ease}
+.photo-chat-details[open] summary::after{transform:rotate(180deg)}
+.photo-chat-details pre{white-space:pre-wrap; word-break:break-word; border-top:1px solid var(--border); border-radius:0; padding:10px 12px; margin:0; font-family:inherit; font-size:12px; line-height:1.55; color:var(--text2); max-height:150px; overflow:auto; background:var(--card2)}
+.photo-chat-footer{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:13px; padding-top:12px; border-top:1px solid var(--border)}
+.photo-chat-footer .btn{min-width:150px; justify-content:center}
+.photo-chat-meta{font-size:11.5px; color:var(--muted); line-height:1.5; font-weight:600}
 
 /* ---- light theme (sage / cobalt) ---- */
 html[data-theme="light"]{
@@ -330,8 +358,9 @@ html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="l
       <div class="header-actions">
         <span class="status"><span class="dot" id="statusDot"></span><span id="statusText">Offline</span></span>
         <a class="btn btn-ghost btn-sm" href="/docs">API docs</a>
+        <button class="btn btn-ghost btn-sm" onclick="focusTasks()">My tasks</button>
         <button class="btn btn-primary btn-sm" onclick="focusAdd()">＋ New task</button>
-        <button type="button" class="btn btn-ghost btn-sm theme-btn" id="themeBtn" onclick="toggleTheme()" aria-label="Toggle theme" aria-pressed="false" title="Switch to light theme">☀️ Light</button>
+        <button type="button" class="btn btn-ghost btn-sm theme-btn" id="themeBtn" onclick="toggleTheme()" aria-label="Toggle theme" aria-pressed="false" title="Switch to light theme">Light</button>
         <button class="btn btn-ghost btn-sm" onclick="resetAll()">Reset</button>
       </div>
     </header>
@@ -342,32 +371,32 @@ html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="l
           <h3>Your day, organized</h3>
           <p>Capture in plain language — nothing saves until you say yes</p>
         </div>
-        <span class="banner-badge">🔒 Local SQLite • Private</span>
+        <span class="banner-badge">Local SQLite • Private</span>
       </div>
 
       <div class="stats">
         <div class="stat">
           <div><div class="stat-label">Open tasks</div><div class="stat-num" id="statOpen">0</div></div>
-          <div class="stat-icon champagne">◷</div>
+          <div class="stat-icon champagne">Open</div>
         </div>
         <div class="stat">
           <div><div class="stat-label">Due today</div><div class="stat-num" id="statDue">0</div></div>
-          <div class="stat-icon copper">⚑</div>
+          <div class="stat-icon copper">Due</div>
         </div>
         <div class="stat">
           <div><div class="stat-label">Completed</div><div class="stat-num" id="statDone">0</div></div>
-          <div class="stat-icon emerald">✓</div>
+          <div class="stat-icon emerald">Done</div>
         </div>
       </div>
 
       <!-- quick actions moved here, above the two-column content -->
       <div class="quickbar" id="actions">
         <span class="quickbar-title">Quick actions</span>
-        <button class="btn btn-ghost btn-sm" onclick="briefing('morning')">☀️ Morning</button>
-        <button class="btn btn-ghost btn-sm" onclick="briefing('evening')">🌙 Evening</button>
-        <button class="btn btn-ghost btn-sm" onclick="planDay()">📋 Plan my day</button>
-        <button class="btn btn-ghost btn-sm" onclick="runTick()">🔔 Check reminders</button>
-        <button class="btn btn-ghost btn-sm" onclick="progressCheck()">📈 Progress check</button>
+        <button class="btn btn-ghost btn-sm" onclick="briefing('morning')">Morning</button>
+        <button class="btn btn-ghost btn-sm" onclick="briefing('evening')">Evening</button>
+        <button class="btn btn-ghost btn-sm" onclick="planDay()">Plan my day</button>
+        <button class="btn btn-ghost btn-sm" onclick="runTick()">Check reminders</button>
+        <button class="btn btn-ghost btn-sm" onclick="progressCheck()">Progress check</button>
         <div class="brief" id="brief"></div>
         <div class="brief" id="pushLog"></div>
       </div>
@@ -376,26 +405,28 @@ html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="l
         <div>
           <div class="card" id="tasks">
             <div class="card-head">
-              <div><h2>Your tasks</h2><p>Click ✓ to complete • All data stays local</p></div>
+              <div><h2>Your tasks</h2><p>Click the checkbox to complete • All data stays local</p></div>
               <span class="badge" id="taskCount">0</span>
             </div>
             <div class="card-body">
               <div class="add-box" id="add">
                 <div class="add-box-head">
-                  <b>✎ Quick add</b>
+                  <b>Quick add</b>
                   <span class="badge rules" id="engineBadge">RULES</span>
                 </div>
                 <textarea id="sentence" placeholder="pay electricity bill before Friday, urgent">pay electricity bill before Friday, urgent</textarea>
                 <div class="input-note">Plain English works best — “pay rent tomorrow, urgent”</div>
                 <div class="pills" style="margin-top:10px">
-                  <button class="pill" onclick="fill('finish biology notes by Friday')">📚 biology by Friday</button>
-                  <button class="pill" onclick="fill('pay rent tomorrow')">💸 pay rent tomorrow</button>
-                  <button class="pill" onclick="fill('call dentist Monday 4pm')">🦷 dentist 4pm</button>
+                  <button class="pill" onclick="fill('finish biology notes by Friday')">biology by Friday</button>
+                  <button class="pill" onclick="fill('pay rent tomorrow')">pay rent tomorrow</button>
+                  <button class="pill" onclick="fill('call dentist Monday 4pm')">dentist 4pm</button>
                 </div>
                 <div class="row" style="margin-top:10px">
                   <button class="btn btn-primary btn-sm" id="parseBtn" onclick="parseSentence()">Parse →</button>
+                  <button class="btn btn-ghost btn-sm" id="photoAddBtn" onclick="pickPhoto()">Add photo</button>
                   <button class="btn btn-ghost btn-sm" onclick="$('sentence').value='';$('sentence').focus()">Clear</button>
                 </div>
+                <!-- Photo classifications are posted to the Assistant chat. -->
                 <div class="result" id="fields"></div>
                 <div class="row" id="saveRow" style="display:none; margin-top:10px">
                   <button class="btn btn-primary btn-sm" id="saveParsedBtn" onclick="saveParsed()">Save task</button>
@@ -429,6 +460,7 @@ html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="l
               <div class="chat" id="chat"></div>
               <div class="chat-input">
                 <input type="text" id="msg" placeholder="Ask a question or add a task…" onkeydown="if(event.key==='Enter')sendMsg()">
+                <button class="btn btn-ghost btn-sm" onclick="pickPhoto()" title="Add photo">Photo</button>
                 <button class="btn btn-primary btn-sm" id="sendBtn" onclick="sendMsg()">Send</button>
               </div>
               <div class="pending" id="pendingBox">
@@ -447,6 +479,7 @@ html[data-theme="light"] .card,html[data-theme="light"] .stat,html[data-theme="l
   </div>
 </div>
 
+<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="uploadPhoto()">
 <div id="toast"></div>
 <script>
 const $=id=>document.getElementById(id);
@@ -466,8 +499,9 @@ async function checkHealth(){
   }
 }
 const PRI={1:'p1',2:'p2',3:''};
-let lastParse=null; let filter='all';
+let lastParse=null; let filter='all'; const photoChats={}; let photoChatSeq=0;
 function focusAdd(){const a=$('add'); if(a) a.scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(()=>{const s=$('sentence'); if(s) s.focus()},350)}
+function focusTasks(){const a=$('tasks'); if(a) a.scrollIntoView({behavior:'smooth',block:'start'})}
 function fill(t){$('sentence').value=t; parseSentence(); focusAdd()}
 function setFilter(v){filter=v;['All','Open','Done'].forEach(k=>{const e=$('f'+k); if(e) e.classList.remove('active')}); const a=$('f'+v[0].toUpperCase()+v.slice(1)); if(a) a.classList.add('active'); loadTasks()}
 function renderParse(data,target){
@@ -480,7 +514,6 @@ function renderParse(data,target){
     ['Priority','<select id="ed_priority"><option value="1">1 — urgent</option><option value="2">2 — soon</option><option value="3">3 — normal</option></select>',why.priority],
     ['Due date','<input type="date" id="ed_deadline" value="'+esc(p.deadline||'')+'">',why.deadline],
     ['Time','<input type="time" id="ed_time" value="'+esc(p.suggested_time||'')+'">',why.suggested_time],
-    ['Effort','<input type="number" id="ed_minutes" min="1" max="600" value="'+p.estimated_minutes+'">',why.estimated_minutes],
   ];
   if(p.context) rows.push(['Why','<div class="v" style="font-weight:500;color:var(--text2)">'+esc(p.context)+'</div>','']);
   target.innerHTML=rows.map(([k,v,w])=>'<div class="field"><div class="k">'+k+'</div><div><div>'+v+'</div>'+(w?'<div class="hint">'+esc(w)+'</div>':'')+'</div></div>').join('');
@@ -498,11 +531,93 @@ async function parseSentence(){
 async function saveParsed(){
   if(!lastParse){toast('Parse first');return}
   const btn=$('saveParsedBtn'); btn.disabled=true;
-  const body={title:$('ed_title').value.trim(), category:$('ed_category').value, priority:parseInt($('ed_priority').value,10), deadline:$('ed_deadline').value||null, estimated_minutes:parseInt($('ed_minutes').value,10)||30, suggested_time:($('ed_time')&&$('ed_time').value)||null, context:lastParse.context||'', approved:true};
+  const body={title:$('ed_title').value.trim(), category:$('ed_category').value, priority:parseInt($('ed_priority').value,10), deadline:$('ed_deadline').value||null, estimated_minutes:lastParse.estimated_minutes||30, suggested_time:($('ed_time')&&$('ed_time').value)||null, context:lastParse.context||'', approved:true};
   if(!body.title){toast('Title required');btn.disabled=false;return}
   try{const saved=await api('/tasks',{method:'POST', body:JSON.stringify(body)}); toast('Saved: '+saved.title); loadTasks()}
   catch(e){toast('Could not save')} finally{btn.disabled=false}
 }
+function pickPhoto(){const f=$('photoInput'); if(f) f.click()}
+function renderPhotoChat(d){
+  const id=++photoChatSeq;
+  const c=d.classification||{};
+  const add=Array.isArray(c.add)?c.add:[];
+  const ignore=Array.isArray(c.ignore)?c.ignore:[];
+  const engine=c.engine||d.engine||'none';
+  const ocr=d.ocr_engine||'OCR';
+  photoChats[id]={add:add, ignore:ignore, engine:engine, ocr_engine:ocr};
+  const isModel=engine.includes('model');
+  let html='<div class="bubble bot photo-chat"><div class="who">Assistant</div><div class="photo-chat-body">';
+  html+='<div class="photo-chat-summary">'+esc(d.reply||'I read the photo and classified each line.')+'</div>';
+  html+='<div class="photo-chat-badges"><span class="badge '+(isModel?'model':'rules')+'">'+(isModel?'MODEL':'RULES')+'</span><span class="photo-chip ocr">'+esc(ocr)+' OCR</span><span class="photo-chip">'+add.length+' to add</span><span class="photo-chip">'+ignore.length+' ignored</span></div>';
+  html+='<div class="photo-chat-section"><h4>Add these</h4>';
+  if(add.length){
+    html+='<div class="photo-chat-list">'+add.map((p,i)=>
+      '<label class="photo-chat-item"><input type="checkbox" class="photo-chat-check" data-photo-id="'+id+'" data-index="'+i+'" checked><span><b>'+esc(p.title)+'</b><small>'+esc(p.reason||p.context||'Real task')+'</small><small>'+esc(p.category||'task')+' • P'+esc(p.priority||3)+(p.deadline?' • '+esc(p.deadline):'')+'</small></span></label>'
+    ).join('')+'</div>';
+  }else{
+    html+='<div class="photo-chat-empty">No real tasks were found in this photo.</div>';
+  }
+  html+='</div><div class="photo-chat-section"><h4>Ignore these</h4>';
+  if(ignore.length){
+    html+='<div class="photo-chat-list">'+ignore.map(x=>
+      '<div class="photo-chat-item ignore"><span></span><span><b>'+esc(x.text)+'</b><small>'+esc(x.reason)+'</small></span></div>'
+    ).join('')+'</div>';
+  }else{
+    html+='<div class="photo-chat-empty">No lines were ignored.</div>';
+  }
+  html+='</div>';
+  if(d.text) html+='<details class="photo-chat-details"><summary>Raw OCR text<span>'+esc(ocr)+'</span></summary><pre>'+esc(d.text)+'</pre></details>';
+  html+='<div class="photo-chat-footer"><button class="btn btn-primary btn-sm photo-chat-save" data-photo-id="'+id+'" onclick="savePhotoChat('+id+')"'+(add.length?'':' disabled')+'>Add selected tasks</button><span class="photo-chat-meta">Nothing is saved until you click. Uncheck anything you do not want.</span></div>';
+  html+='</div></div>';
+  bubbleHtml(html,'bot','');
+  const card=$('assistant'); if(card) card.scrollIntoView({behavior:'smooth',block:'center'});
+}
+async function savePhotoChat(id){
+  const state=photoChats[id]; if(!state) return;
+  const checks=document.querySelectorAll('.photo-chat-check[data-photo-id="'+id+'"]');
+  const selected=[];
+  checks.forEach(c=>{
+    if(!c.checked) return;
+    const p=state.add[parseInt(c.dataset.index,10)];
+    if(!p) return;
+    selected.push({
+      title:p.title, category:p.category||'personal', priority:parseInt(p.priority,10)||3,
+      deadline:p.deadline||null, suggested_time:p.suggested_time||null,
+      estimated_minutes:parseInt(p.estimated_minutes,10)||30,
+      notes:p.notes||'', context:p.context||p.reason||''
+    });
+  });
+  if(!selected.length){toast('Select at least one task');return}
+  try{
+    const d=await api('/photo/tasks/confirm',{method:'POST',body:JSON.stringify({approved:true,proposals:selected})});
+    toast('Saved '+d.saved_count+' task(s) from photo');
+    const btn=document.querySelector('.photo-chat-save[data-photo-id="'+id+'"]');
+    if(btn){btn.disabled=true; btn.textContent='Saved '+d.saved_count+' task(s)'}
+    checks.forEach(c=>c.disabled=true);
+    loadTasks();
+  }catch(e){toast('Could not save photo tasks')}
+}
+async function uploadPhoto(){
+  const input=$('photoInput'); const file=input.files&&input.files[0]; if(!file) return;
+  const btn=$('photoAddBtn');
+  bubble('I uploaded a photo.','user','You');
+  if(btn){btn.disabled=true; btn.textContent='Reading…'}
+  const form=new FormData(); form.append('file',file);
+  try{
+    const r=await fetch('/photo/tasks',{method:'POST',body:form});
+    if(!r.ok) throw new Error(await r.text());
+    const d=await r.json();
+    if(!d.ocr_available){
+      bubble(d.reply||'Run pip install -r requirements.txt to enable OCR.','bot','Assistant');
+    }else{
+      renderPhotoChat(d);
+    }
+  }catch(e){
+    bubble(e.message||'Could not read the photo.','bot','Assistant');
+  }
+  finally{input.value=''; if(btn){btn.disabled=false; btn.textContent='Add photo'}}
+}
+
 function isDueToday(d){if(!d) return false; return d===new Date().toISOString().slice(0,10)}
 async function loadTasks(){
   try{
@@ -515,13 +630,14 @@ async function loadTasks(){
     $('statOpen').textContent=open.length; $('statDone').textContent=done; $('statDue').textContent=due; $('taskCount').textContent=tasks.length;
     const list=$('tasksList');
     if(!tasks.length){list.innerHTML='<div class="empty"><p>No tasks here</p><span>Try quick add above or ask the assistant →</span></div>'; return}
-    list.innerHTML=tasks.map(t=>`<div class="task ${t.status==='done'?'done':''}"><div class="check" onclick="completeTask(${t.id})"></div><div class="t-main"><div class="t-title">${esc(t.title)}</div><div class="t-meta"><span class="cat">${esc(t.category)}</span><span class="tag ${PRI[t.priority]||''}">P${t.priority}</span>${t.deadline?'<span>• '+esc(t.deadline)+'</span>':''}${t.suggested_time?'<span>• '+esc(t.suggested_time)+'</span>':''}<span>• ${t.estimated_minutes}m</span></div></div><button class="del" onclick="deleteTask(${t.id})">×</button></div>`).join('');
+    list.innerHTML=tasks.map(t=>`<div class="task ${t.status==='done'?'done':''}"><div class="check" onclick="completeTask(${t.id})"></div><div class="t-main"><div class="t-title">${esc(t.title)}</div><div class="t-meta"><span class="cat">${esc(t.category)}</span><span class="tag ${PRI[t.priority]||''}">P${t.priority}</span>${t.deadline?'<span>• '+esc(t.deadline)+'</span>':''}${t.suggested_time?'<span>• '+esc(t.suggested_time)+'</span>':''}<span>• ${t.estimated_minutes}m</span></div></div><button class="del" onclick="deleteTask(${t.id})" title="Delete task" aria-label="Delete task">Delete</button></div>`).join('');
   }catch(e){$('tasksList').innerHTML='<div class="empty"><p>Offline</p></div>'}
 }
 async function completeTask(id){await api('/tasks/'+id+'/complete',{method:'POST'}); toast('Done'); loadTasks()}
 async function deleteTask(id){if(!confirm('Delete this task?')) return; await api('/tasks/'+id+'?approved=true',{method:'DELETE'}); toast('Deleted'); loadTasks()}
 let sender='ui-'+Math.random().toString(36).slice(2,8);
 function bubble(text,kind,who){const d=document.createElement('div'); d.className='bubble '+kind; d.innerHTML=(who?'<div class="who">'+esc(who)+'</div>':'')+esc(text); $('chat').appendChild(d); $('chat').scrollTop=$('chat').scrollHeight}
+function bubbleHtml(html,kind,who){const d=document.createElement('div'); d.className='bubble '+kind; d.innerHTML=(who?'<div class="who">'+esc(who)+'</div>':'')+html; $('chat').appendChild(d); $('chat').scrollTop=$('chat').scrollHeight; return d}
 async function sendMsg(){
   const input=$('msg'); const m=input.value.trim(); if(!m) return; input.value=''; bubble(m,'user','You');
   try{const r=await api('/chat',{method:'POST', body:JSON.stringify({message:m, sender})}); bubble(r.reply,'bot',r.agent); await refreshPending(); loadTasks()}catch(e){bubble('Backend offline','bot','System')}
@@ -538,7 +654,7 @@ $('todayDate').textContent=new Date().toLocaleDateString('en-US',{weekday:'long'
 function applyTheme(t){
   document.documentElement.dataset.theme=t;
   document.querySelectorAll('.theme-btn').forEach(b=>{
-    b.textContent=t==='light'?'🌙 Dark':'☀️ Light';
+    b.textContent=t==='light'?'Dark':'Light';
     b.title=t==='light'?'Switch to dark theme':'Switch to light theme';
     b.setAttribute('aria-pressed',t==='light'?'true':'false');
   });

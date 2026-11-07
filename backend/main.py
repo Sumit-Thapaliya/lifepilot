@@ -76,6 +76,7 @@ def health() -> dict:
         "status": "ok",
         "service": "lifepilot",
         "understanding": understanding_service.status(),
+        "photo_ocr": photo_service.status(),
         "reminders": ticker_service.status(),
     }
 
@@ -260,7 +261,7 @@ def delete_task(task_id: int, approved: bool = False) -> dict:
     """Deleting is a change to stored data, so it needs explicit approval."""
     if not approved:
         raise HTTPException(400, "Deleting a task requires ?approved=true")
-    deleted = task_service.delete_task(task_id)
+    deleted = task_service.delete_task(task_id, approved=True)
     if not deleted:
         raise HTTPException(404, "Task not found")
     return {"deleted": task_id}
@@ -335,9 +336,25 @@ def evening_review() -> dict:
 
 @app.post("/photo/tasks")
 async def photo_tasks(file: UploadFile = File(...)) -> dict:
-    """Read a photo and propose tasks. Never saves."""
+    """Read a photo, classify OCR lines, and propose tasks. Never saves."""
     raw = await file.read()
-    return photo_service.extract_tasks(raw)
+    return photo_service.extract_tasks_from_photo(raw, file.filename or "photo.png")
+
+
+@app.post("/photo/tasks/confirm")
+def confirm_photo_tasks(payload: schemas.PhotoConfirm) -> dict:
+    """Save reviewed photo tasks only after an explicit approval click."""
+    if not payload.approved:
+        return {
+            "saved": [],
+            "saved_count": 0,
+            "requires_confirmation": True,
+            "reply": "Nothing was saved. Approve the photo tasks first.",
+        }
+    proposals = [item.model_dump() for item in payload.proposals]
+    result = capture_agent.save_photo_proposals(proposals)
+    result["saved_count"] = len(result.get("saved") or [])
+    return result
 
 
 @app.get("/memory")
@@ -409,7 +426,13 @@ def run_check() -> int:
     from pathlib import Path
 
     from . import database, env_loader
-    from .services import deliver_service, llm_service, scheduler_service, ticker_service
+    from .services import (
+        deliver_service,
+        llm_service,
+        photo_service,
+        scheduler_service,
+        ticker_service,
+    )
 
     problems = 0
 
@@ -496,6 +519,15 @@ def run_check() -> int:
     line(
         "Progress check-ins",
         f"every {progress_hours}h during active hours" if progress_hours else "disabled",
+    )
+    ocr = photo_service.status()
+    engine = ocr["engine"] or "No OCR engine"
+    line(
+        "Photo OCR",
+        engine + " available, " + ocr["understanding"] + " understanding"
+        if ocr["available"]
+        else "OCR missing (run pip install -r requirements.txt)",
+        ocr["available"],
     )
     line("Task warning window", f"{scheduler_service.task_window_days()} day(s) ahead")
     line("Bill warning window", f"{scheduler_service.bill_window_days()} day(s) ahead")

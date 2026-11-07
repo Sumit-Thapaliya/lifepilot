@@ -136,15 +136,17 @@ def handle_photo(result: dict) -> dict:
         return {"agent": NAME, "reply": result.get("reply", "I could not read that photo.")}
 
     lines = "\n".join(
-        f'{i}. {p["title"]} — {p["category"]}, due {p["deadline"] or "no date"}'
+        f'{i}. {p["title"]} ({p["category"]}, due {p["deadline"] or "no date"})'
         for i, p in enumerate(proposals, 1)
     )
+    engine = result.get("engine", "rules")
+    source = "the language model" if engine.startswith("model") else "local OCR rules"
     return {
         "agent": NAME,
         "requires_confirmation": True,
         "pending_photo": proposals,
         "reply": (
-            f"Capture — I read {len(proposals)} item(s) from the photo:\n{lines}\n"
+            f"Capture found {len(proposals)} task(s) from the photo with {source}:\n{lines}\n"
             "Nothing is saved yet. Reply 'yes' to save them all or 'no' to discard."
         ),
     }

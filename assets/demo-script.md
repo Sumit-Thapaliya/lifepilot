@@ -48,6 +48,7 @@ The line to land: *"Every single step asked first. That is the whole product."*
 - "Nothing is saved until I say yes. That's enforced in the code, not just the prompt."
 - "General questions get answers. Only actionable text becomes a task proposal."
 - "The scheduler checks in on one open task every few hours and never edits it."
+- "Assistant chat reads a photo and shows Add these and Ignore these decisions with reasons. Only the selected real tasks are saved after I approve."
 
 ## Screenshot checklist
 
@@ -58,4 +59,5 @@ The line to land: *"Every single step asked first. That is the whole product."*
 - [ ] `python -m backend.main --demo` output
 - [ ] A general question answered by Assistant with no approval panel
 - [ ] Progress check preview in Quick actions
-- [ ] `pytest -q` showing 133 passed
+- [ ] Assistant chat showing Add these / Ignore these decisions, reasons, and Add selected tasks approval
+- [ ] `pytest -q` showing 148 passed
