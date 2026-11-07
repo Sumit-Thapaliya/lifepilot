@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: lifepilot-free
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    healthCheckPath: /health
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: LIFEPILOT_DB
+        value: /tmp/lifepilot.db
+      - key: LIFEPILOT_OUTBOX
+        value: /tmp/outbox.log
+      - key: LIFEPILOT_TICK
+        value: "1"
+      - key: LIFEPILOT_TIMEZONE
+        value: Asia/Kathmandu
+      - key: LIFEPILOT_OCR_ENGINE
+        value: auto
